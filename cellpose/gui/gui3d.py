@@ -6,7 +6,23 @@ import sys, os, pathlib, warnings, datetime, time
 
 from qtpy import QtGui, QtCore
 from superqt import QRangeSlider
-from qtpy.QtWidgets import QScrollArea, QMainWindow, QApplication, QWidget, QScrollBar, QComboBox, QGridLayout, QPushButton, QFrame, QCheckBox, QLabel, QProgressBar, QLineEdit, QMessageBox, QGroupBox
+from qtpy.QtWidgets import (
+    QScrollArea,
+    QMainWindow,
+    QApplication,
+    QWidget,
+    QScrollBar,
+    QComboBox,
+    QGridLayout,
+    QPushButton,
+    QFrame,
+    QCheckBox,
+    QLabel,
+    QProgressBar,
+    QLineEdit,
+    QMessageBox,
+    QGroupBox,
+)
 import pyqtgraph as pg
 
 import numpy as np
@@ -17,47 +33,57 @@ from . import guiparts, menus, io
 from .. import models, core, dynamics, version
 from ..utils import download_url_to_file, masks_to_outlines, diameters
 from ..io import get_image_files, imsave, imread
-from ..transforms import resize_image, normalize99  #fixed import
+from ..transforms import resize_image, normalize99  # fixed import
 from ..plot import disk
 from ..transforms import normalize99_tile, smooth_sharpen_img
 from .gui import MainW
 
 try:
     import matplotlib.pyplot as plt
+
     MATPLOTLIB = True
 except:
     MATPLOTLIB = False
 
 
 def avg3d(C):
-    """ smooth value of c across nearby points
-        (c is center of grid directly below point)
-        b -- a -- b
-        a -- c -- a
-        b -- a -- b
+    """smooth value of c across nearby points
+    (c is center of grid directly below point)
+    b -- a -- b
+    a -- c -- a
+    b -- a -- b
     """
     Ly, Lx = C.shape
     # pad T by 2
     T = np.zeros((Ly + 2, Lx + 2), "float32")
     M = np.zeros((Ly, Lx), "float32")
     T[1:-1, 1:-1] = C.copy()
-    y, x = np.meshgrid(np.arange(0, Ly, 1, int), np.arange(0, Lx, 1, int),
-                       indexing="ij")
+    y, x = np.meshgrid(
+        np.arange(0, Ly, 1, int), np.arange(0, Lx, 1, int), indexing="ij"
+    )
     y += 1
     x += 1
-    a = 1. / 2  #/(z**2 + 1)**0.5
-    b = 1. / (1 + 2**0.5)  #(z**2 + 2)**0.5
-    c = 1.
-    M = (b * T[y - 1, x - 1] + a * T[y - 1, x] + b * T[y - 1, x + 1] + a * T[y, x - 1] +
-         c * T[y, x] + a * T[y, x + 1] + b * T[y + 1, x - 1] + a * T[y + 1, x] +
-         b * T[y + 1, x + 1])
+    a = 1.0 / 2  # /(z**2 + 1)**0.5
+    b = 1.0 / (1 + 2**0.5)  # (z**2 + 2)**0.5
+    c = 1.0
+    M = (
+        b * T[y - 1, x - 1]
+        + a * T[y - 1, x]
+        + b * T[y - 1, x + 1]
+        + a * T[y, x - 1]
+        + c * T[y, x]
+        + a * T[y, x + 1]
+        + b * T[y + 1, x - 1]
+        + a * T[y + 1, x]
+        + b * T[y + 1, x + 1]
+    )
     M /= 4 * a + 4 * b + c
     return M
 
 
 def interpZ(mask, zdraw):
-    """ find nearby planes and average their values using grid of points
-        zfill is in ascending order
+    """find nearby planes and average their values using grid of points
+    zfill is in ascending order
     """
     ifill = np.ones(mask.shape[0], "bool")
     zall = np.arange(0, mask.shape[0], 1, int)
@@ -71,14 +97,28 @@ def interpZ(mask, zdraw):
         plower = avg3d(mask[zlower[k]]) * (1 - zl)
         pupper = avg3d(mask[zupper[k]]) * zl
         mask[z] = (plower + pupper) > 0.33
-        #Ml, norml = avg3d(mask[zlower[k]], zl)
-        #Mu, normu = avg3d(mask[zupper[k]], 1-zl)
-        #mask[z] = (Ml + Mu) / (norml + normu)  > 0.5
+        # Ml, norml = avg3d(mask[zlower[k]], zl)
+        # Mu, normu = avg3d(mask[zupper[k]], 1-zl)
+        # mask[z] = (Ml + Mu) / (norml + normu)  > 0.5
     return mask, zfill
 
 
 def run(image=None):
+    """
+    Run the main application for the Cellpose GUI.
+
+        This method initializes the Qt application, sets up the logger, and
+        ensures that necessary resources such as icons and images are available.
+        It then launches the main window of the application.
+
+        Args:
+            image: An optional image that may be processed by the application.
+
+        Returns:
+            An integer indicating the exit status of the application.
+    """
     from ..io import logger_setup
+
     logger, log_file = logger_setup()
     # Always start by initializing Qt (only once per application)
     warnings.filterwarnings("ignore")
@@ -92,11 +132,16 @@ def run(image=None):
         print("downloading logo")
         download_url_to_file(
             "https://www.cellpose.org/static/images/cellpose_transparent.png",
-            icon_path, progress=True)
+            icon_path,
+            progress=True,
+        )
     if not guip_path.is_file():
         print("downloading help window image")
-        download_url_to_file("https://www.cellpose.org/static/images/cellpose_gui.png",
-                             guip_path, progress=True)
+        download_url_to_file(
+            "https://www.cellpose.org/static/images/cellpose_gui.png",
+            guip_path,
+            progress=True,
+        )
     icon_path = str(icon_path.resolve())
     app_icon = QtGui.QIcon()
     app_icon.addFile(icon_path, QtCore.QSize(16, 16))
@@ -108,7 +153,7 @@ def run(image=None):
     app.setWindowIcon(app_icon)
     app.setStyle("Fusion")
     app.setPalette(guiparts.DarkPalette())
-    #app.setStyleSheet("QLineEdit { color: yellow }")
+    # app.setStyleSheet("QLineEdit { color: yellow }")
 
     # models.download_model_weights() # does not exist
     MainW_3d(image=image, logger=logger)
@@ -117,8 +162,56 @@ def run(image=None):
 
 
 class MainW_3d(MainW):
+    """
+    A class to manage and visualize 3D images for processing and analysis.
+
+    This class sets up the user interface for 3D image processing, allowing users
+    to interact with and manipulate 3D visualizations through a variety of UI elements
+    including dropdowns, checkboxes, and input fields. It features functionality for
+    creating masks, handling orthogonal views, and updating visual elements in response
+    to user interactions.
+
+    Methods:
+        __init__
+        add_mask
+        move_in_Z
+        make_orthoviews
+        add_orthoviews
+        remove_orthoviews
+        update_crosshairs
+        update_ortho
+        toggle_ortho
+        plot_clicked
+        update_plot
+        keyPressEvent
+        update_ztext
+
+    Attributes:
+        Various UI components for managing visualization and interactions
+        with the 3D images.
+
+    The methods in this class are responsible for initializing the UI, processing
+    user inputs (like mouse clicks and key presses), updating visualizations, and
+    managing the display of orthogonal views. The attributes store the state and
+    configuration necessary for these interactions and visualizations.
+    """
 
     def __init__(self, image=None, logger=None):
+        """
+        Initializes the MainW class and sets up various UI elements for 3D image
+            processing.
+
+            This constructor sets up the dropdown menu, checkboxes, labels, and input fields
+            necessary for manipulating and viewing 3D images. It configures the layout with
+            orthoviews, a scrollbar for the Z dimension, and various settings for image processing.
+
+            Args:
+                image: An optional image to be loaded upon initialization.
+                logger: An optional logger instance for logging purposes.
+
+            Returns:
+                None
+        """
         # MainW init
         MainW.__init__(self, image=image, logger=logger)
 
@@ -134,11 +227,11 @@ class MainW_3d(MainW):
         self.hLine = pg.InfiniteLine(angle=0, movable=False)
         self.vLineOrtho = [
             pg.InfiniteLine(angle=90, movable=False),
-            pg.InfiniteLine(angle=90, movable=False)
+            pg.InfiniteLine(angle=90, movable=False),
         ]
         self.hLineOrtho = [
             pg.InfiniteLine(angle=0, movable=False),
-            pg.InfiniteLine(angle=0, movable=False)
+            pg.InfiniteLine(angle=0, movable=False),
         ]
         self.make_orthoviews()
 
@@ -180,7 +273,7 @@ class MainW_3d(MainW):
         )
         self.segBoxG.addWidget(self.flow3D_smooth, b, 8, 1, 1)
 
-        b+=1
+        b += 1
         label = QLabel("anisotropy:")
         label.setToolTip(
             "for 3D volumes, increase in sampling in Z vs XY as a ratio, e.g. set set to 2.0 if Z is sampled half as dense as X or Y (see docs for details)"
@@ -197,12 +290,14 @@ class MainW_3d(MainW):
         self.segBoxG.addWidget(self.anisotropy, b, 4, 1, 1)
 
         self.resample = QCheckBox("resample")
-        self.resample.setToolTip("reample before creating masks; if diameter > 30 resample will use more CPU+GPU memory (see docs for more details)")
+        self.resample.setToolTip(
+            "reample before creating masks; if diameter > 30 resample will use more CPU+GPU memory (see docs for more details)"
+        )
         self.resample.setFont(self.medfont)
         self.resample.setChecked(True)
         self.segBoxG.addWidget(self.resample, b, 5, 1, 4)
 
-        b+=1
+        b += 1
         label = QLabel("min_size:")
         label.setToolTip(
             "all masks less than this size in pixels (volume) will be removed"
@@ -274,6 +369,23 @@ class MainW_3d(MainW):
         self.load_3D = True
 
     def add_mask(self, points=None, color=(100, 200, 50), dense=True):
+        """
+        Add a mask based on the provided stroke points.
+
+            This method takes a list of stroke points for different z values, processes
+            them to create a mask, and draws it in the appropriate layers. It also
+            handles overlapping areas, ensuring that the generated mask maintains
+            consistency while avoiding unnecessary overlaps.
+
+            Args:
+                points: A list of strokes, where each stroke is an array of points.
+                color: The color used to draw the mask, specified as an RGB tuple.
+                dense: A boolean flag indicating whether to create a dense mask.
+
+            Returns:
+                A list containing the median x and y coordinates of the drawn masks
+                for each z value.
+        """
         # points is list of strokes
 
         points_all = np.concatenate(points, axis=0)
@@ -287,8 +399,12 @@ class MainW_3d(MainW):
         mall = np.zeros((len(zrange), self.Ly, self.Lx), "bool")
         k = 0
         for z in zdraw:
-            ars, acs, vrs, vcs = np.zeros(0, "int"), np.zeros(0, "int"), np.zeros(
-                0, "int"), np.zeros(0, "int")
+            ars, acs, vrs, vcs = (
+                np.zeros(0, "int"),
+                np.zeros(0, "int"),
+                np.zeros(0, "int"),
+                np.zeros(0, "int"),
+            )
             for stroke in points:
                 stroke = np.concatenate(stroke, axis=0).reshape(-1, 4)
                 iz = stroke[:, 0] == z
@@ -297,14 +413,16 @@ class MainW_3d(MainW):
                 if iz.sum() > 0:
                     # get points inside drawn points
                     mask = np.zeros((np.ptp(vr) + 4, np.ptp(vc) + 4), "uint8")
-                    pts = np.stack((vc - vc.min() + 2, vr - vr.min() + 2),
-                                   axis=-1)[:, np.newaxis, :]
+                    pts = np.stack((vc - vc.min() + 2, vr - vr.min() + 2), axis=-1)[
+                        :, np.newaxis, :
+                    ]
                     mask = cv2.fillPoly(mask, [pts], (255, 0, 0))
                     ar, ac = np.nonzero(mask)
                     ar, ac = ar + vr.min() - 2, ac + vc.min() - 2
                     # get dense outline
-                    contours = cv2.findContours(mask, cv2.RETR_EXTERNAL,
-                                                cv2.CHAIN_APPROX_NONE)
+                    contours = cv2.findContours(
+                        mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
+                    )
                     pvc, pvr = contours[-2][0].squeeze().T
                     vr, vc = pvr + vr.min() - 2, pvc + vc.min() - 2
                     # concatenate all points
@@ -319,8 +437,9 @@ class MainW_3d(MainW):
                         # compute outline of new mask
                         mask = np.zeros((np.ptp(ar) + 4, np.ptp(ac) + 4), "uint8")
                         mask[ar - ar.min() + 2, ac - ac.min() + 2] = 1
-                        contours = cv2.findContours(mask, cv2.RETR_EXTERNAL,
-                                                    cv2.CHAIN_APPROX_NONE)
+                        contours = cv2.findContours(
+                            mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
+                        )
                         pvc, pvr = contours[-2][0].squeeze().T
                         vr, vc = pvr + ar.min() - 2, pvc + ac.min() - 2
                     ars = np.concatenate((ars, ar), axis=0)
@@ -333,8 +452,9 @@ class MainW_3d(MainW):
             mall[z - zmin, ars, acs] = True
             pix = np.append(pix, np.vstack((ars, acs)), axis=-1)
 
-        mall = mall[:, pix[0].min():pix[0].max() + 1,
-                    pix[1].min():pix[1].max() + 1].astype("float32")
+        mall = mall[
+            :, pix[0].min() : pix[0].max() + 1, pix[1].min() : pix[1].max() + 1
+        ].astype("float32")
         ymin, xmin = pix[0].min(), pix[1].min()
         if len(zdraw) > 1:
             mall, zfill = interpZ(mall, zdraw - zmin)
@@ -343,8 +463,9 @@ class MainW_3d(MainW):
                 ar, ac = np.nonzero(mask)
                 ioverlap = self.cellpix[z + zmin][ar + ymin, ac + xmin] > 0
                 if (~ioverlap).sum() < 5:
-                    print("WARNING: stroke on plane %d not included due to overlaps" %
-                          z)
+                    print(
+                        "WARNING: stroke on plane %d not included due to overlaps" % z
+                    )
                 elif ioverlap.sum() > 0:
                     mask[ar[ioverlap], ac[ioverlap]] = 0
                     ar, ac = ar[~ioverlap], ac[~ioverlap]
@@ -360,6 +481,19 @@ class MainW_3d(MainW):
         return median
 
     def move_in_Z(self):
+        """
+        Updates the current Z position based on the scroll value.
+
+            This method adjusts the current Z position within the defined limits
+            of NZ, updates the corresponding text display, refreshes the plot, and
+            redraws the current layer.
+
+            Parameters:
+                None
+
+            Returns:
+                None
+        """
         if self.loaded:
             self.currentZ = min(self.NZ, max(0, int(self.scroll.value())))
             self.zpos.setText(str(self.currentZ))
@@ -368,20 +502,39 @@ class MainW_3d(MainW):
             self.update_layer()
 
     def make_orthoviews(self):
+        """
+        Creates orthogonal views for visualizing data.
+
+            This method initializes and configures two orthogonal view boxes for displaying
+            images and layers. Each view box is set up with proper aspect ratios, and they
+            have linked axes for synchronized viewing.
+
+            Parameters:
+                None
+
+            Returns:
+                None
+        """
         self.pOrtho, self.imgOrtho, self.layerOrtho = [], [], []
         for j in range(2):
             self.pOrtho.append(
-                pg.ViewBox(lockAspect=True, name=f"plotOrtho{j}",
-                           border=[100, 100, 100], invertY=True, enableMouse=False))
+                pg.ViewBox(
+                    lockAspect=True,
+                    name=f"plotOrtho{j}",
+                    border=[100, 100, 100],
+                    invertY=True,
+                    enableMouse=False,
+                )
+            )
             self.pOrtho[j].setMenuEnabled(False)
 
             self.imgOrtho.append(pg.ImageItem(viewbox=self.pOrtho[j], parent=self))
             self.imgOrtho[j].autoDownsample = False
 
             self.layerOrtho.append(pg.ImageItem(viewbox=self.pOrtho[j], parent=self))
-            self.layerOrtho[j].setLevels([0., 255.])
+            self.layerOrtho[j].setLevels([0.0, 255.0])
 
-            #self.pOrtho[j].scene().contextMenuItem = self.pOrtho[j]
+            # self.pOrtho[j].scene().contextMenuItem = self.pOrtho[j]
             self.pOrtho[j].addItem(self.imgOrtho[j])
             self.pOrtho[j].addItem(self.layerOrtho[j])
             self.pOrtho[j].addItem(self.vLineOrtho[j], ignoreBounds=False)
@@ -391,6 +544,20 @@ class MainW_3d(MainW):
         self.pOrtho[1].linkView(self.pOrtho[1].XAxis, self.p0)
 
     def add_orthoviews(self):
+        """
+        Add orthogonal views to the visualization window.
+
+            This method sets up orthogonal viewports in the visualization window
+            by positioning them at the center of the data grid. It updates the
+            orthogonal views based on the current data dimensions and adjusts
+            the layout of the views for optimal display.
+
+            Parameters:
+                None
+
+            Returns:
+                None
+        """
         self.yortho = self.Ly // 2
         self.xortho = self.Lx // 2
         if self.NZ > 1:
@@ -405,15 +572,15 @@ class MainW_3d(MainW):
         qGraphicsGridLayout.setRowStretchFactor(0, 2)
         qGraphicsGridLayout.setRowStretchFactor(1, 1)
 
-        #self.p0.linkView(self.p0.YAxis, self.pOrtho[0])
-        #self.p0.linkView(self.p0.XAxis, self.pOrtho[1])
+        # self.p0.linkView(self.p0.YAxis, self.pOrtho[0])
+        # self.p0.linkView(self.p0.XAxis, self.pOrtho[1])
 
         self.pOrtho[0].setYRange(0, self.Lx)
         self.pOrtho[0].setXRange(-self.dz / 3, self.dz * 2 + self.dz / 3)
         self.pOrtho[1].setYRange(-self.dz / 3, self.dz * 2 + self.dz / 3)
         self.pOrtho[1].setXRange(0, self.Ly)
-        #self.pOrtho[0].setLimits(minXRange=self.dz*2+self.dz/3*2)
-        #self.pOrtho[1].setLimits(minYRange=self.dz*2+self.dz/3*2)
+        # self.pOrtho[0].setLimits(minXRange=self.dz*2+self.dz/3*2)
+        # self.pOrtho[1].setLimits(minYRange=self.dz*2+self.dz/3*2)
 
         self.p0.addItem(self.vLine, ignoreBounds=False)
         self.p0.addItem(self.hLine, ignoreBounds=False)
@@ -423,9 +590,21 @@ class MainW_3d(MainW):
         self.win.show()
         self.show()
 
-        #self.p0.linkView(self.p0.XAxis, self.pOrtho[1])
+        # self.p0.linkView(self.p0.XAxis, self.pOrtho[1])
 
     def remove_orthoviews(self):
+        """
+        Removes the orthogonal views from the user interface.
+
+            This method eliminates specific graphical elements representing orthogonal views
+            from the main window and removes associated line items, updating the display accordingly.
+
+            Parameters:
+                None
+
+            Returns:
+                None
+        """
         self.win.removeItem(self.pOrtho[0])
         self.win.removeItem(self.pOrtho[1])
         self.p0.removeItem(self.vLine)
@@ -434,6 +613,20 @@ class MainW_3d(MainW):
         self.show()
 
     def update_crosshairs(self):
+        """
+        Update the position of crosshairs on a graphical interface.
+
+            This method adjusts the vertical and horizontal crosshairs' position
+            based on the current coordinates, ensuring that they remain within the
+            specified bounds of the display dimensions. It also updates the positions
+            of associated graphical elements.
+
+            Parameters:
+                None
+
+            Returns:
+                None
+        """
         self.yortho = min(self.Ly - 1, max(0, int(self.yortho)))
         self.xortho = min(self.Lx - 1, max(0, int(self.xortho)))
         self.vLine.setPos(self.xortho)
@@ -444,10 +637,24 @@ class MainW_3d(MainW):
         self.hLineOrtho[0].setPos(self.yortho)
 
     def update_ortho(self):
+        """
+        Update the orthographic view based on current settings.
+
+            This method modifies the orthographic view by updating the aspect ratio,
+            the range of the view, and the displayed images based on user inputs and
+            current settings. It also handles the visualization of cell masks and outlines
+            if they are enabled.
+
+            Parameters:
+                None
+
+            Returns:
+                None
+        """
         if self.NZ > 1 and self.orthobtn.isChecked():
             dzcurrent = self.dz
             self.dz = min(100, max(3, int(self.dzedit.text())))
-            self.zaspect = max(0.01, min(100., float(self.zaspectedit.text())))
+            self.zaspect = max(0.01, min(100.0, float(self.zaspectedit.text())))
             self.dzedit.setText(str(self.dz))
             self.zaspectedit.setText(str(self.zaspect))
             if self.dz != dzcurrent:
@@ -474,41 +681,53 @@ class MainW_3d(MainW):
                 for j in range(2):
                     if j == 0:
                         if self.view == 0:
-                            image = self.stack[zmin:zmax, :, x].transpose(1, 0, 2).copy()
+                            image = (
+                                self.stack[zmin:zmax, :, x].transpose(1, 0, 2).copy()
+                            )
                         else:
-                            image = self.stack_filtered[zmin:zmax, :,
-                                                        x].transpose(1, 0, 2).copy()
+                            image = (
+                                self.stack_filtered[zmin:zmax, :, x]
+                                .transpose(1, 0, 2)
+                                .copy()
+                            )
                     else:
-                        image = self.stack[
-                            zmin:zmax,
-                            y, :].copy() if self.view == 0 else self.stack_filtered[zmin:zmax,
-                                                                             y, :].copy()
+                        image = (
+                            self.stack[zmin:zmax, y, :].copy()
+                            if self.view == 0
+                            else self.stack_filtered[zmin:zmax, y, :].copy()
+                        )
                     if self.nchan == 1:
                         # show single channel
                         image = image[..., 0]
                     if self.color == 0:
                         self.imgOrtho[j].setImage(image, autoLevels=False, lut=None)
                         if self.nchan > 1:
-                            levels = np.array([
-                                self.saturation[0][self.currentZ],
-                                self.saturation[1][self.currentZ],
-                                self.saturation[2][self.currentZ]
-                            ])
+                            levels = np.array(
+                                [
+                                    self.saturation[0][self.currentZ],
+                                    self.saturation[1][self.currentZ],
+                                    self.saturation[2][self.currentZ],
+                                ]
+                            )
                             self.imgOrtho[j].setLevels(levels)
                         else:
                             self.imgOrtho[j].setLevels(
-                                self.saturation[0][self.currentZ])
+                                self.saturation[0][self.currentZ]
+                            )
                     elif self.color > 0 and self.color < 4:
                         if self.nchan > 1:
                             image = image[..., self.color - 1]
-                        self.imgOrtho[j].setImage(image, autoLevels=False,
-                                                  lut=self.cmap[self.color])
+                        self.imgOrtho[j].setImage(
+                            image, autoLevels=False, lut=self.cmap[self.color]
+                        )
                         if self.nchan > 1:
                             self.imgOrtho[j].setLevels(
-                                self.saturation[self.color - 1][self.currentZ])
+                                self.saturation[self.color - 1][self.currentZ]
+                            )
                         else:
                             self.imgOrtho[j].setLevels(
-                                self.saturation[0][self.currentZ])
+                                self.saturation[0][self.currentZ]
+                            )
                     elif self.color == 4:
                         if image.ndim > 2:
                             image = image.astype("float32").mean(axis=2).astype("uint8")
@@ -517,11 +736,12 @@ class MainW_3d(MainW):
                     elif self.color == 5:
                         if image.ndim > 2:
                             image = image.astype("float32").mean(axis=2).astype("uint8")
-                        self.imgOrtho[j].setImage(image, autoLevels=False,
-                                                  lut=self.cmap[0])
+                        self.imgOrtho[j].setImage(
+                            image, autoLevels=False, lut=self.cmap[0]
+                        )
                         self.imgOrtho[j].setLevels(self.saturation[0][self.currentZ])
                 self.pOrtho[0].setAspectLocked(lock=True, ratio=self.zaspect)
-                self.pOrtho[1].setAspectLocked(lock=True, ratio=1. / self.zaspect)
+                self.pOrtho[1].setAspectLocked(lock=True, ratio=1.0 / self.zaspect)
 
             else:
                 image = np.zeros((10, 10), "uint8")
@@ -533,7 +753,7 @@ class MainW_3d(MainW):
         zrange = zmax - zmin
         self.layer_ortho = [
             np.zeros((self.Ly, zrange, 4), "uint8"),
-            np.zeros((zrange, self.Lx, 4), "uint8")
+            np.zeros((zrange, self.Lx, 4), "uint8"),
         ]
         if self.masksOn:
             for j in range(2):
@@ -545,7 +765,8 @@ class MainW_3d(MainW):
                 self.layer_ortho[j][..., 3] = self.opacity * (cp > 0).astype("uint8")
                 if self.selected > 0:
                     self.layer_ortho[j][cp == self.selected] = np.array(
-                        [255, 255, 255, self.opacity])
+                        [255, 255, 255, self.opacity]
+                    )
 
         if self.outlinesOn:
             for j in range(2):
@@ -561,15 +782,45 @@ class MainW_3d(MainW):
         self.show()
 
     def toggle_ortho(self):
+        """
+        Toggle the orthographic view based on the state of the orthographic button.
+
+            This method checks the state of the orthographic button and either adds or removes
+            orthographic views accordingly. If the button is checked, orthographic views are added;
+            otherwise, they are removed.
+
+            Returns:
+                None: This method does not return any value.
+        """
         if self.orthobtn.isChecked():
             self.add_orthoviews()
         else:
             self.remove_orthoviews()
 
     def plot_clicked(self, event):
-        if event.button()==QtCore.Qt.LeftButton \
-                and not event.modifiers() & (QtCore.Qt.ShiftModifier | QtCore.Qt.AltModifier)\
-                and not self.removing_region:
+        """
+        Handles mouse click events for plotting.
+
+            This method processes mouse click events in the plot area. It adjusts
+            the view range when the left mouse button is clicked, updates orthogonal
+            coordinates if applicable, and checks for certain modifiers to allow
+            specific interactions, such as double-clicking to reset view or single
+            clicks to select and update coordinates.
+
+            Args:
+                event: The mouse event containing information about the click,
+                       including the button pressed, any modifiers, and the
+                       position of the click.
+
+            Returns:
+                None: This method does not return a value.
+        """
+        if (
+            event.button() == QtCore.Qt.LeftButton
+            and not event.modifiers()
+            & (QtCore.Qt.ShiftModifier | QtCore.Qt.AltModifier)
+            and not self.removing_region
+        ):
             if event.double():
                 try:
                     self.p0.setYRange(0, self.Ly + self.pr)
@@ -590,6 +841,20 @@ class MainW_3d(MainW):
                                 self.update_ortho()
 
     def update_plot(self):
+        """
+        Update the plot and refresh the display.
+
+            This method updates the plot using the superclass's update_plot method.
+            If there are multiple data sets and the orthobtn is checked, it also
+            performs an additional update with the orthographic view. Finally, it
+            ensures that the main window and plot display are shown.
+
+            Parameters:
+                None
+
+            Returns:
+                None
+        """
         super().update_plot()
         if self.NZ > 1 and self.orthobtn.isChecked():
             self.update_ortho()
@@ -597,10 +862,31 @@ class MainW_3d(MainW):
         self.show()
 
     def keyPressEvent(self, event):
+        """
+        Handles key press events and updates the application state accordingly.
+
+            This method processes key events to perform various actions such as
+            modifying the current view, updating the current color, or adjusting the
+            current index based on user input. The method is responsive to specific
+            key presses and modifies UI elements based on the state of the application.
+
+            Args:
+                event: The key event that triggered this method, containing details
+                       about the key pressed and any modifiers involved.
+
+            Returns:
+                None
+        """
         if self.loaded:
-            if not (event.modifiers() &
-                    (QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier |
-                     QtCore.Qt.AltModifier) or self.in_stroke):
+            if not (
+                event.modifiers()
+                & (
+                    QtCore.Qt.ControlModifier
+                    | QtCore.Qt.ShiftModifier
+                    | QtCore.Qt.AltModifier
+                )
+                or self.in_stroke
+            ):
                 updated = False
                 if len(self.current_point_set) > 0:
                     if event.key() == QtCore.Qt.Key_Return:
@@ -617,19 +903,25 @@ class MainW_3d(MainW):
                 else:
                     nviews = self.ViewDropDown.count() - 1
                     nviews += int(
-                        self.ViewDropDown.model().item(self.ViewDropDown.count() -
-                                                       1).isEnabled())
+                        self.ViewDropDown.model()
+                        .item(self.ViewDropDown.count() - 1)
+                        .isEnabled()
+                    )
                     if event.key() == QtCore.Qt.Key_X:
                         self.MCheckBox.toggle()
                     if event.key() == QtCore.Qt.Key_Z:
                         self.OCheckBox.toggle()
-                    if event.key() == QtCore.Qt.Key_Left or event.key(
-                    ) == QtCore.Qt.Key_A:
+                    if (
+                        event.key() == QtCore.Qt.Key_Left
+                        or event.key() == QtCore.Qt.Key_A
+                    ):
                         self.currentZ = max(0, self.currentZ - 1)
                         self.scroll.setValue(self.currentZ)
                         updated = True
-                    elif event.key() == QtCore.Qt.Key_Right or event.key(
-                    ) == QtCore.Qt.Key_D:
+                    elif (
+                        event.key() == QtCore.Qt.Key_Right
+                        or event.key() == QtCore.Qt.Key_D
+                    ):
                         self.currentZ = min(self.NZ - 1, self.currentZ + 1)
                         self.scroll.setValue(self.currentZ)
                         updated = True
@@ -644,8 +936,9 @@ class MainW_3d(MainW):
                 if event.key() == QtCore.Qt.Key_Up or event.key() == QtCore.Qt.Key_W:
                     self.color = (self.color - 1) % (6)
                     self.RGBDropDown.setCurrentIndex(self.color)
-                elif event.key() == QtCore.Qt.Key_Down or event.key(
-                ) == QtCore.Qt.Key_S:
+                elif (
+                    event.key() == QtCore.Qt.Key_Down or event.key() == QtCore.Qt.Key_S
+                ):
                     self.color = (self.color + 1) % (6)
                     self.RGBDropDown.setCurrentIndex(self.color)
                 elif event.key() == QtCore.Qt.Key_R:
@@ -666,8 +959,10 @@ class MainW_3d(MainW):
                     else:
                         self.color = 0
                     self.RGBDropDown.setCurrentIndex(self.color)
-                elif (event.key() == QtCore.Qt.Key_Comma or
-                      event.key() == QtCore.Qt.Key_Period):
+                elif (
+                    event.key() == QtCore.Qt.Key_Comma
+                    or event.key() == QtCore.Qt.Key_Period
+                ):
                     count = self.BrushChoose.count()
                     gci = self.BrushChoose.currentIndex()
                     if event.key() == QtCore.Qt.Key_Comma:
@@ -682,6 +977,24 @@ class MainW_3d(MainW):
             self.p0.keyPressEvent(event)
 
     def update_ztext(self):
+        """
+        Update the Z-axis position based on user input.
+
+            This method retrieves the value from the zpos text field, converts it to an integer,
+            and updates the current Z-axis position accordingly. It ensures that the position
+            stays within the valid range (0 to NZ - 1). If the input is not a valid number,
+            an error message is printed. The current Z position is then reflected in the zpos text
+            field and the scroll value.
+
+            Raises:
+                ValueError: If the value from zpos is not a valid number.
+
+            Parameters:
+                None
+
+            Returns:
+                None
+        """
         zpos = self.currentZ
         try:
             zpos = int(self.zpos.text())

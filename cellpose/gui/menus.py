@@ -7,7 +7,22 @@ from qtpy.QtWidgets import QAction
 from . import io, features
 from .. import models
 
+
 def mainmenu(parent):
+    """
+    Creates and populates the main menu for the application.
+
+        This method sets up the main menu bar by adding a file menu with various
+        actions related to loading and saving images and masks. It connects
+        specific keyboard shortcuts to these actions and provides options for
+        autoloading masks and disabling autosave functionality.
+
+        Args:
+            parent: The parent widget that contains the menu bar.
+
+        Returns:
+            None
+    """
     main_menu = parent.menuBar()
     file_menu = main_menu.addMenu("&File")
     # load processed data
@@ -16,13 +31,15 @@ def mainmenu(parent):
     loadImg.triggered.connect(lambda: io._load_image(parent))
     file_menu.addAction(loadImg)
 
-    parent.autoloadMasks = QAction("Autoload masks from _masks.tif file", parent,
-                                   checkable=True)
+    parent.autoloadMasks = QAction(
+        "Autoload masks from _masks.tif file", parent, checkable=True
+    )
     parent.autoloadMasks.setChecked(False)
     file_menu.addAction(parent.autoloadMasks)
 
-    parent.disableAutosave = QAction("Disable autosave _seg.npy file", parent,
-                                     checkable=True)
+    parent.disableAutosave = QAction(
+        "Disable autosave _seg.npy file", parent, checkable=True
+    )
     parent.disableAutosave.setChecked(False)
     file_menu.addAction(parent.disableAutosave)
 
@@ -55,8 +72,9 @@ def mainmenu(parent):
     file_menu.addAction(parent.saveOutlines)
     parent.saveOutlines.setEnabled(False)
 
-    parent.saveROIs = QAction("Save outlines as .zip archive of &ROI files for ImageJ",
-                              parent)
+    parent.saveROIs = QAction(
+        "Save outlines as .zip archive of &ROI files for ImageJ", parent
+    )
     parent.saveROIs.setShortcut("Ctrl+R")
     parent.saveROIs.triggered.connect(lambda: io._save_rois(parent))
     file_menu.addAction(parent.saveROIs)
@@ -70,6 +88,20 @@ def mainmenu(parent):
 
 
 def editmenu(parent):
+    """
+    Sets up the edit menu in the application's menu bar.
+
+        This method creates an 'Edit' menu in the provided parent widget's menu bar.
+        It adds several actions including undo, redo, clear masks, and remove cell
+        functionalities. Each action is connected to its respective handler and
+        has defined keyboard shortcuts. The actions are initially disabled.
+
+        Args:
+            parent: The parent widget that contains the menu bar for the application.
+
+        Returns:
+            None: This method does not return a value.
+    """
     main_menu = parent.menuBar()
     edit_menu = main_menu.addMenu("&Edit")
     parent.undo = QAction("Undo previous mask/trace", parent)
@@ -102,17 +134,31 @@ def editmenu(parent):
 
 
 def modelmenu(parent):
+    """
+    Creates and configures the model menu in the application's main window.
+
+        This method initializes the model menu within the provided parent window,
+        setting up actions for adding, removing, and training new custom models,
+        as well as displaying training instructions.
+
+        Args:
+            parent: The parent widget that contains the menu bar. This is typically
+            the main window of the application.
+
+        Returns:
+            None: This method does not return any value.
+    """
     main_menu = parent.menuBar()
     io._init_model_list(parent)
     model_menu = main_menu.addMenu("&Models")
     parent.addmodel = QAction("Add custom torch model to GUI", parent)
-    #parent.addmodel.setShortcut("Ctrl+A")
+    # parent.addmodel.setShortcut("Ctrl+A")
     parent.addmodel.triggered.connect(parent.add_model)
     parent.addmodel.setEnabled(True)
     model_menu.addAction(parent.addmodel)
 
     parent.removemodel = QAction("Remove selected custom model from GUI", parent)
-    #parent.removemodel.setShortcut("Ctrl+R")
+    # parent.removemodel.setShortcut("Ctrl+R")
     parent.removemodel.triggered.connect(parent.remove_model)
     parent.removemodel.setEnabled(True)
     model_menu.addAction(parent.removemodel)
@@ -127,28 +173,75 @@ def modelmenu(parent):
     openTrainHelp.triggered.connect(parent.train_help_window)
     model_menu.addAction(openTrainHelp)
 
+
 def masksmenu(parent):
+    """
+    Sets up the Masks menu in the application's main menu bar.
+
+        This method creates a submenu titled 'Masks' under the main menu bar and
+        adds actions for saving masks temporarily and saving labeled masks.
+        The actions are connected to their respective methods in the features class
+        and are initially disabled.
+
+        Args:
+            parent: The parent widget that holds the menu bar and contains
+                    the features_class for handling mask-related functionalities.
+
+        Returns:
+            None
+    """
     main_menu = parent.menuBar()
     masks_menu = main_menu.addMenu("&Masks")
 
     parent.keepMask = QAction("Save mask temporarily", parent)
-    parent.keepMask.triggered.connect(lambda: parent.features_class.save_temp_output(gui_self=parent))
+    parent.keepMask.triggered.connect(
+        lambda: parent.features_class.save_temp_output(gui_self=parent)
+    )
     parent.keepMask.setEnabled(False)
     masks_menu.addAction(parent.keepMask)
 
     parent.saveMasks = QAction("Save labeled mask", parent)
-    parent.saveMasks.triggered.connect(lambda: parent.features_class.save_labeled_masks(gui_self=parent))
+    parent.saveMasks.triggered.connect(
+        lambda: parent.features_class.save_labeled_masks(gui_self=parent)
+    )
     parent.saveMasks.setEnabled(False)
     masks_menu.addAction(parent.saveMasks)
 
     parent.features_class.main_masks_menu = masks_menu
 
+
 def imagesmenu(parent):
+    """
+    Creates and adds an 'Images' menu to the main menu bar.
+
+        This method initializes an 'Images' menu and adds it to the main menu bar
+        of the provided parent widget. It also stores a reference to this menu in
+        the parent's features_class for further manipulation.
+
+        Args:
+            parent: The parent widget to which the 'Images' menu will be added.
+
+        Returns:
+            None
+    """
     main_menu = parent.menuBar()
     images_menu = main_menu.addMenu("&Images")
     parent.features_class.main_images_menu = images_menu
 
+
 def helpmenu(parent):
+    """
+    Sets up the help menu for the application window.
+
+    This method adds a 'Help' menu to the application’s main menu bar,
+    which includes actions that open help-related windows for the user.
+
+    Args:
+        parent: The parent widget that hosts the menu bar.
+
+    Returns:
+        None
+    """
     main_menu = parent.menuBar()
     help_menu = main_menu.addMenu("&Help")
 

@@ -1,6 +1,7 @@
 """
 Copyright © 2023 Howard Hughes Medical Institute, Authored by Carsen Stringer and Marius Pachitariu.
 """
+
 import os
 import numpy as np
 from tqdm import trange
@@ -22,6 +23,20 @@ n_samples = 20
 
 
 def CIL_dataset(root):
+    """
+    Prepare and save datasets for training and validation from the Cell Image Library.
+
+        This method processes images from the Cell Image Library, normalizes them,
+        and divides them into training and validation sets. The training set consists
+        of artificially generated noisy images and their corresponding ground truth images.
+        The method saves the generated datasets into specific directories for later use.
+
+        Args:
+            root: The root directory containing the 'train' and 'test' image directories.
+
+        Returns:
+            None
+    """
 
     # keep green channel, first 89 images are cellimagelibrary
     train_data = []
@@ -46,26 +61,37 @@ def CIL_dataset(root):
 
     for i in trange(len(train_data)):
         img = train_data[i].copy().astype("float32")
-        #print(img.shape)
+        # print(img.shape)
         Ly, Lx = img.shape[-2:]
         img0 = torch.from_numpy(img).unsqueeze(0)
         gt_train = np.stack(
-            (img[:, :Ly // 2, :Lx // 2], img[:, :Ly // 2, Lx // 2:2 * (Lx // 2)],
-             img[:, Ly // 2:2 * (Ly // 2), :Lx // 2]), axis=0)
-        gt_val = img[:, Ly // 2:, Lx // 2:]
+            (
+                img[:, : Ly // 2, : Lx // 2],
+                img[:, : Ly // 2, Lx // 2 : 2 * (Lx // 2)],
+                img[:, Ly // 2 : 2 * (Ly // 2), : Lx // 2],
+            ),
+            axis=0,
+        )
+        gt_val = img[:, Ly // 2 :, Lx // 2 :]
 
         for k in range(n_samples):
-            imr = denoise.add_noise(img0, poisson=0.8, beta=0.7, blur=0.0,
-                                    downsample=0.0).numpy()[0]
+            imr = denoise.add_noise(
+                img0, poisson=0.8, beta=0.7, blur=0.0, downsample=0.0
+            ).numpy()[0]
 
             im_train = np.stack(
-                (imr[:, :Ly // 2, :Lx // 2], imr[:, :Ly // 2, Lx // 2:2 * (Lx // 2)],
-                 imr[:, Ly // 2:2 * (Ly // 2), :Lx // 2]), axis=0)
+                (
+                    imr[:, : Ly // 2, : Lx // 2],
+                    imr[:, : Ly // 2, Lx // 2 : 2 * (Lx // 2)],
+                    imr[:, Ly // 2 : 2 * (Ly // 2), : Lx // 2],
+                ),
+                axis=0,
+            )
             # divide image into 4 parts for training and validation
             im_train_all.extend(list(im_train.squeeze()))
             gt_train_all.extend(list(gt_train.squeeze()))
 
-            im_val = imr[:, Ly // 2:, Lx // 2:]
+            im_val = imr[:, Ly // 2 :, Lx // 2 :]
             im_val_all.append(im_val.squeeze())
             gt_val_all.append(gt_val.squeeze())
 
@@ -83,17 +109,39 @@ def CIL_dataset(root):
     n_val = len(im_val_all)
     print(n_train, n_val)
     [
-        io.imsave(Path(root / "noisy_test" / "care" / "GT" / f"{i+n_train:03d}.tif"),
-                  im) for i, im in enumerate(gt_val_all)
+        io.imsave(
+            Path(root / "noisy_test" / "care" / "GT" / f"{i+n_train:03d}.tif"), im
+        )
+        for i, im in enumerate(gt_val_all)
     ]
     [
         io.imsave(
-            Path(root / "noisy_test" / "care" / "source" / f"{i+n_train:03d}.tif"), im)
+            Path(root / "noisy_test" / "care" / "source" / f"{i+n_train:03d}.tif"), im
+        )
         for i, im in enumerate(im_val_all)
     ]
 
 
 def train_test_specialist(root, lr=0.001, n_epochs=100, test=True):
+    """
+    Train a CARE model and optionally evaluate it on test data.
+
+        This method handles the end-to-end process of training a
+        Correction for Image Restoration (CARE) model using patches of
+        training data. It can also evaluate the model on test datasets and
+        compute performance metrics.
+
+        Args:
+            root: The path to the root directory containing data required for training and testing.
+            lr: The learning rate for the training process (default is 0.001).
+            n_epochs: The total number of training epochs (default is 100).
+            test: A boolean flag indicating whether to perform testing after training (default is True).
+
+        Returns:
+            If `test` is False, returns the minimum validation loss during training.
+            If `test` is True, returns a tuple consisting of restored images,
+            generated masks from the predicted images, and average precision scores.
+    """
     n_train = 3 * 89 * n_samples
     n_val = 1 * 89 * n_samples
 
@@ -117,24 +165,36 @@ def train_test_specialist(root, lr=0.001, n_epochs=100, test=True):
     print(val_frac)
     (X, Y), (X_val, Y_val), axes = load_training_data(
         Path(root / "noisy_test" / "care" / "training_data.npz"),
-        validation_split=val_frac, verbose=True)
+        validation_split=val_frac,
+        verbose=True,
+    )
 
-    c = axes_dict(axes)['C']
+    c = axes_dict(axes)["C"]
     n_channel_in, n_channel_out = X.shape[c], Y.shape[c]
 
-    config = Config(axes, n_channel_in, n_channel_out, unet_kern_size=3,
-                    train_batch_size=8, train_steps_per_epoch=400,
-                    train_learning_rate=lr, train_epochs=n_epochs)
+    config = Config(
+        axes,
+        n_channel_in,
+        n_channel_out,
+        unet_kern_size=3,
+        train_batch_size=8,
+        train_steps_per_epoch=400,
+        train_learning_rate=lr,
+        train_epochs=n_epochs,
+    )
     print(config)
     vars(config)
 
-    model = CARE(config, f'CIL_lr{lr:0.5f}_ne{n_epochs}',
-                 basedir=Path(root / "noisy_test" / "care" / "models"))
+    model = CARE(
+        config,
+        f"CIL_lr{lr:0.5f}_ne{n_epochs}",
+        basedir=Path(root / "noisy_test" / "care" / "models"),
+    )
     history = model.train(X, Y, validation_data=(X_val, Y_val))
 
     print(sorted(list(history.history.keys())))
     plt.figure(figsize=(16, 5))
-    plot_history(history, ['loss', 'val_loss'], ['mse', 'val_mse', 'mae', 'val_mae'])
+    plot_history(history, ["loss", "val_loss"], ["mse", "val_mse", "mae", "val_mae"])
     plt.show()
 
     val_min = np.array(history.history["val_loss"]).min()
@@ -143,8 +203,9 @@ def train_test_specialist(root, lr=0.001, n_epochs=100, test=True):
     if not test:
         return val_min
     else:
-        dat = np.load(root / "noisy_test" / "test_poisson.npy",
-                      allow_pickle=True).item()
+        dat = np.load(
+            root / "noisy_test" / "test_poisson.npy", allow_pickle=True
+        ).item()
         test_noisy = dat["test_noisy"][:11]
         masks_true = dat["masks_true"][:11]
         diam_test = dat["diam_test"]
@@ -155,8 +216,9 @@ def train_test_specialist(root, lr=0.001, n_epochs=100, test=True):
         ]
 
         seg_model = models.CellposeModel(gpu=True, model_type="cyto2_cp3")
-        masks2 = seg_model.eval(restored, channels=[0, 0], diameter=diam_test,
-                                normalize=True)[0]
+        masks2 = seg_model.eval(
+            restored, channels=[0, 0], diameter=diam_test, normalize=True
+        )[0]
 
         dat[f"test_care"] = restored
         dat[f"masks_care"] = masks2
@@ -164,8 +226,9 @@ def train_test_specialist(root, lr=0.001, n_epochs=100, test=True):
         np.save(root / "noisy_test" / f"test_poisson_care_specialist.npy", dat)
 
         thresholds = np.arange(0.5, 1.0, 0.05)
-        ap, tp, fp, fn = metrics.average_precision(masks_true, masks2,
-                                                   threshold=thresholds)
+        ap, tp, fp, fn = metrics.average_precision(
+            masks_true, masks2, threshold=thresholds
+        )
         print(ap.mean(axis=0))
 
         return restored, masks2, ap
