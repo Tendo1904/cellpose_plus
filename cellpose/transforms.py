@@ -16,7 +16,7 @@ transforms_logger = logging.getLogger(__name__)
 
 def _taper_mask(ly=224, lx=224, sig=7.5):
     """
-    Generate a taper mask.
+    Generate a tapered mask that gradually adjusts values across defined boundaries, minimizing sharp transitions to improve subsequent analytical or processing tasks.
 
     Args:
         ly (int): The height of the mask. Default is 224.
@@ -26,19 +26,25 @@ def _taper_mask(ly=224, lx=224, sig=7.5):
     Returns:
         numpy.ndarray: The taper mask.
 
+
+
     """
+
     bsize = max(224, max(ly, lx))
     xm = np.arange(bsize)
     xm = np.abs(xm - xm.mean())
     mask = 1 / (1 + np.exp((xm - (bsize / 2 - 20)) / sig))
     mask = mask * mask[:, np.newaxis]
-    mask = mask[bsize // 2 - ly // 2:bsize // 2 + ly // 2 + ly % 2,
-                bsize // 2 - lx // 2:bsize // 2 + lx // 2 + lx % 2]
+    mask = mask[
+        bsize // 2 - ly // 2 : bsize // 2 + ly // 2 + ly % 2,
+        bsize // 2 - lx // 2 : bsize // 2 + lx // 2 + lx % 2,
+    ]
     return mask
 
 
 def unaugment_tiles(y):
-    """Reverse test-time augmentations for averaging (includes flipping of flowsY and flowsX).
+    """
+    Restores the original tile data by reversing the specified augmentations, while ensuring that the directional flow components are correctly adjusted for proper consistency in averaging.
 
     Args:
         y (float32): Array of shape (ntiles_y, ntiles_x, chan, Ly, Lx) where chan = (flowsY, flowsX, cell prob).
@@ -46,7 +52,10 @@ def unaugment_tiles(y):
     Returns:
         float32: Array of shape (ntiles_y, ntiles_x, chan, Ly, Lx).
 
+
+
     """
+
     for j in range(y.shape[0]):
         for i in range(y.shape[1]):
             if j % 2 == 0 and i % 2 == 1:
@@ -64,7 +73,7 @@ def unaugment_tiles(y):
 
 def average_tiles(y, ysub, xsub, Ly, Lx):
     """
-    Average the results of the network over tiles.
+    Aggregate the network's output by averaging results from overlapping tiles, effectively synthesizing contributions to form a unified representation of the entire image.
 
     Args:
         y (float): Output of cellpose network for each tile. Shape: [ntiles x nclasses x bsize x bsize]
@@ -75,20 +84,24 @@ def average_tiles(y, ysub, xsub, Ly, Lx):
 
     Returns:
         yf (float32): Network output averaged over tiles. Shape: [nclasses x Ly x Lx]
+
+
     """
+
     Navg = np.zeros((Ly, Lx))
     yf = np.zeros((y.shape[1], Ly, Lx), np.float32)
     # taper edges of tiles
     mask = _taper_mask(ly=y.shape[-2], lx=y.shape[-1])
     for j in range(len(ysub)):
-        yf[:, ysub[j][0]:ysub[j][1], xsub[j][0]:xsub[j][1]] += y[j] * mask
-        Navg[ysub[j][0]:ysub[j][1], xsub[j][0]:xsub[j][1]] += mask
+        yf[:, ysub[j][0] : ysub[j][1], xsub[j][0] : xsub[j][1]] += y[j] * mask
+        Navg[ysub[j][0] : ysub[j][1], xsub[j][0] : xsub[j][1]] += mask
     yf /= Navg
     return yf
 
 
 def make_tiles(imgi, bsize=224, augment=False, tile_overlap=0.1):
-    """Make tiles of image to run at test-time.
+    """
+    Segment the input image into smaller tiles for analysis, enabling customizable overlap and the option to augment the tiles.
 
     Args:
         imgi (np.ndarray): Array of shape (nchan, Ly, Lx) representing the input image.
@@ -103,7 +116,10 @@ def make_tiles(imgi, bsize=224, augment=False, tile_overlap=0.1):
         xsub (list): List of arrays with start and end of tiles in X of length ntiles.
         Ly (int): Height of the input image.
         Lx (int): Width of the input image.
+
+
     """
+
     nchan, Ly, Lx = imgi.shape
     if augment:
         bsize = np.int32(bsize)
@@ -114,10 +130,10 @@ def make_tiles(imgi, bsize=224, augment=False, tile_overlap=0.1):
         if Lx < bsize:
             imgi = np.concatenate((imgi, np.zeros((nchan, Ly, bsize - Lx))), axis=2)
         Ly, Lx = imgi.shape[-2:]
-        
+
         # tiles overlap by half of tile size
-        ny = max(2, int(np.ceil(2. * Ly / bsize)))
-        nx = max(2, int(np.ceil(2. * Lx / bsize)))
+        ny = max(2, int(np.ceil(2.0 * Ly / bsize)))
+        nx = max(2, int(np.ceil(2.0 * Lx / bsize)))
         ystart = np.linspace(0, Ly - bsize, ny).astype(int)
         xstart = np.linspace(0, Lx - bsize, nx).astype(int)
 
@@ -130,7 +146,9 @@ def make_tiles(imgi, bsize=224, augment=False, tile_overlap=0.1):
             for i in range(len(xstart)):
                 ysub.append([ystart[j], ystart[j] + bsize])
                 xsub.append([xstart[i], xstart[i] + bsize])
-                IMG[j, i] = imgi[:, ysub[-1][0]:ysub[-1][1], xsub[-1][0]:xsub[-1][1]]
+                IMG[j, i] = imgi[
+                    :, ysub[-1][0] : ysub[-1][1], xsub[-1][0] : xsub[-1][1]
+                ]
                 # flip tiles to allow for augmentation of overlapping segments
                 if j % 2 == 0 and i % 2 == 1:
                     IMG[j, i] = IMG[j, i, :, ::-1, :]
@@ -144,8 +162,8 @@ def make_tiles(imgi, bsize=224, augment=False, tile_overlap=0.1):
         bsizeY = np.int32(bsizeY)
         bsizeX = np.int32(bsizeX)
         # tiles overlap by 10% tile size
-        ny = 1 if Ly <= bsize else int(np.ceil((1. + 2 * tile_overlap) * Ly / bsize))
-        nx = 1 if Lx <= bsize else int(np.ceil((1. + 2 * tile_overlap) * Lx / bsize))
+        ny = 1 if Ly <= bsize else int(np.ceil((1.0 + 2 * tile_overlap) * Ly / bsize))
+        nx = 1 if Lx <= bsize else int(np.ceil((1.0 + 2 * tile_overlap) * Lx / bsize))
         ystart = np.linspace(0, Ly - bsizeY, ny).astype(int)
         xstart = np.linspace(0, Lx - bsizeX, nx).astype(int)
 
@@ -156,14 +174,16 @@ def make_tiles(imgi, bsize=224, augment=False, tile_overlap=0.1):
             for i in range(len(xstart)):
                 ysub.append([ystart[j], ystart[j] + bsizeY])
                 xsub.append([xstart[i], xstart[i] + bsizeX])
-                IMG[j, i] = imgi[:, ysub[-1][0]:ysub[-1][1], xsub[-1][0]:xsub[-1][1]]
+                IMG[j, i] = imgi[
+                    :, ysub[-1][0] : ysub[-1][1], xsub[-1][0] : xsub[-1][1]
+                ]
 
     return IMG, ysub, xsub, Ly, Lx
 
 
 def normalize99(Y, lower=1, upper=99, copy=True, downsample=False):
     """
-    Normalize the image so that 0.0 corresponds to the 1st percentile and 1.0 corresponds to the 99th percentile.
+    Adjust the input image so that its intensity values are mapped to a specified range defined by lower and upper percentiles. This process enhances the overall visibility and detail within the image by ensuring that the majority of pixel values are effectively spread across the specified scale.
 
     Args:
         Y (ndarray): The input image (for downsample, use [Ly x Lx] or [Lz x Ly x Lx]).
@@ -174,9 +194,12 @@ def normalize99(Y, lower=1, upper=99, copy=True, downsample=False):
 
     Returns:
         ndarray: The normalized image.
+
+
     """
+
     X = Y.copy() if copy else Y
-    X = X.astype("float32") if X.dtype!="float64" and X.dtype!="float32" else X
+    X = X.astype("float32") if X.dtype != "float64" and X.dtype != "float32" else X
     if downsample and X.size > 224**3:
         nskip = [max(1, X.shape[i] // 224) for i in range(X.ndim)]
         nskip[0] = max(1, X.shape[0] // 50) if X.ndim == 3 else nskip[0]
@@ -187,16 +210,25 @@ def normalize99(Y, lower=1, upper=99, copy=True, downsample=False):
         x01 = np.percentile(X, lower)
         x99 = np.percentile(X, upper)
     if x99 - x01 > 1e-3:
-        X -= x01 
-        X /= (x99 - x01)
+        X -= x01
+        X /= x99 - x01
     else:
         X[:] = 0
     return X
 
 
-def normalize99_tile(img, blocksize=100, lower=1., upper=99., tile_overlap=0.1,
-                     norm3D=False, smooth3D=1, is3D=False):
-    """Compute normalization like normalize99 function but in tiles.
+def normalize99_tile(
+    img,
+    blocksize=100,
+    lower=1.0,
+    upper=99.0,
+    tile_overlap=0.1,
+    norm3D=False,
+    smooth3D=1,
+    is3D=False,
+):
+    """
+    Normalize the input image by dividing it into smaller, overlapping tiles, allowing for localized intensity adjustments and preserving fine details across the image.
 
     Args:
         img (numpy.ndarray): Array of shape (Lz x) Ly x Lx (x nchan) containing the image.
@@ -210,7 +242,10 @@ def normalize99_tile(img, blocksize=100, lower=1., upper=99., tile_overlap=0.1,
 
     Returns:
         numpy.ndarray: Normalized image array of shape (Lz x) Ly x Lx (x nchan).
+
+
     """
+
     is1c = True if img.ndim == 2 or (is3D and img.ndim == 3) else False
     is3D = True if img.ndim > 3 or (is3D and img.ndim == 3) else False
     img = img[..., np.newaxis] if is1c else img
@@ -222,10 +257,16 @@ def normalize99_tile(img, blocksize=100, lower=1., upper=99., tile_overlap=0.1,
     blocksizeY = np.int32(blocksizeY)
     blocksizeX = np.int32(blocksizeX)
     # tiles overlap by 10% tile size
-    ny = 1 if Ly <= blocksize else int(np.ceil(
-        (1. + 2 * tile_overlap) * Ly / blocksize))
-    nx = 1 if Lx <= blocksize else int(np.ceil(
-        (1. + 2 * tile_overlap) * Lx / blocksize))
+    ny = (
+        1
+        if Ly <= blocksize
+        else int(np.ceil((1.0 + 2 * tile_overlap) * Ly / blocksize))
+    )
+    nx = (
+        1
+        if Lx <= blocksize
+        else int(np.ceil((1.0 + 2 * tile_overlap) * Lx / blocksize))
+    )
     ystart = np.linspace(0, Ly - blocksizeY, ny).astype(int)
     xstart = np.linspace(0, Lx - blocksizeX, nx).astype(int)
     ysub = []
@@ -238,12 +279,13 @@ def normalize99_tile(img, blocksize=100, lower=1., upper=99., tile_overlap=0.1,
     x01_tiles_z = []
     x99_tiles_z = []
     for z in range(Lz):
-        IMG = np.zeros((len(ystart), len(xstart), blocksizeY, blocksizeX, nchan),
-                       "float32")
+        IMG = np.zeros(
+            (len(ystart), len(xstart), blocksizeY, blocksizeX, nchan), "float32"
+        )
         k = 0
         for j in range(len(ystart)):
             for i in range(len(xstart)):
-                IMG[j, i] = img[z, ysub[k][0]:ysub[k][1], xsub[k][0]:xsub[k][1], :]
+                IMG[j, i] = img[z, ysub[k][0] : ysub[k][1], xsub[k][0] : xsub[k][1], :]
                 k += 1
         x01_tiles = np.percentile(IMG, lower, axis=(-3, -2))
         x99_tiles = np.percentile(IMG, upper, axis=(-3, -2))
@@ -256,14 +298,15 @@ def normalize99_tile(img, blocksize=100, lower=1., upper=99., tile_overlap=0.1,
                 fill_vals = np.nonzero(to_fill)
                 fill_neigh = np.nonzero(~to_fill)
                 nearest_neigh = (
-                    (fill_vals[0] - fill_neigh[0][:, np.newaxis])**2 +
-                    (fill_vals[1] - fill_neigh[1][:, np.newaxis])**2).argmin(axis=0)
-                x01_tiles[fill_vals[0], fill_vals[1],
-                          c] = x01_tiles[fill_neigh[0][nearest_neigh],
-                                         fill_neigh[1][nearest_neigh], c]
-                x99_tiles[fill_vals[0], fill_vals[1],
-                          c] = x99_tiles[fill_neigh[0][nearest_neigh],
-                                         fill_neigh[1][nearest_neigh], c]
+                    (fill_vals[0] - fill_neigh[0][:, np.newaxis]) ** 2
+                    + (fill_vals[1] - fill_neigh[1][:, np.newaxis]) ** 2
+                ).argmin(axis=0)
+                x01_tiles[fill_vals[0], fill_vals[1], c] = x01_tiles[
+                    fill_neigh[0][nearest_neigh], fill_neigh[1][nearest_neigh], c
+                ]
+                x99_tiles[fill_vals[0], fill_vals[1], c] = x99_tiles[
+                    fill_neigh[0][nearest_neigh], fill_neigh[1][nearest_neigh], c
+                ]
             elif to_fill.sum() > 0 and to_fill.sum() == x99_tiles[:, :, c].size:
                 x01_tiles[:, :, c] = 0
                 x99_tiles[:, :, c] = 1
@@ -285,21 +328,25 @@ def normalize99_tile(img, blocksize=100, lower=1., upper=99., tile_overlap=0.1,
         x01 = np.zeros((len(x01_tiles_z), Ly, Lx, nchan), "float32")
         x99 = np.zeros((len(x01_tiles_z), Ly, Lx, nchan), "float32")
         for z in range(Lz):
-            x01_rsz = cv2.resize(x01_tiles_z[z], (Lx, Ly),
-                                 interpolation=cv2.INTER_LINEAR)
+            x01_rsz = cv2.resize(
+                x01_tiles_z[z], (Lx, Ly), interpolation=cv2.INTER_LINEAR
+            )
             x01[z] = x01_rsz[..., np.newaxis] if nchan == 1 else x01_rsz
-            x99_rsz = cv2.resize(x99_tiles_z[z], (Lx, Ly),
-                                 interpolation=cv2.INTER_LINEAR)
+            x99_rsz = cv2.resize(
+                x99_tiles_z[z], (Lx, Ly), interpolation=cv2.INTER_LINEAR
+            )
             x99[z] = x99_rsz[..., np.newaxis] if nchan == 1 else x01_rsz
         if (x99 - x01).min() < 1e-3:
             raise ZeroDivisionError(
                 "cannot use norm3D=False with tile_norm, sample is too sparse; set norm3D=True or tile_norm=0"
             )
     else:
-        x01 = cv2.resize(x01_tiles_z.mean(axis=0), (Lx, Ly),
-                         interpolation=cv2.INTER_LINEAR)
-        x99 = cv2.resize(x99_tiles_z.mean(axis=0), (Lx, Ly),
-                         interpolation=cv2.INTER_LINEAR)
+        x01 = cv2.resize(
+            x01_tiles_z.mean(axis=0), (Lx, Ly), interpolation=cv2.INTER_LINEAR
+        )
+        x99 = cv2.resize(
+            x99_tiles_z.mean(axis=0), (Lx, Ly), interpolation=cv2.INTER_LINEAR
+        )
         if x01.ndim < 3:
             x01 = x01[..., np.newaxis]
             x99 = x99[..., np.newaxis]
@@ -310,15 +357,15 @@ def normalize99_tile(img, blocksize=100, lower=1., upper=99., tile_overlap=0.1,
         img, x01, x99 = img[0], x01[0], x99[0]
 
     # normalize
-    img -= x01 
-    img /= (x99 - x01)
+    img -= x01
+    img /= x99 - x01
 
     return img
 
 
 def gaussian_kernel(sigma, Ly, Lx, device=torch.device("cpu")):
     """
-    Generates a 2D Gaussian kernel.
+    Generates a two-dimensional Gaussian kernel given the standard deviation and the specified pixel dimensions. The resulting kernel is normalized to ensure the sum of all its elements equals one.
 
     Args:
         sigma (float): Standard deviation of the Gaussian distribution.
@@ -329,7 +376,10 @@ def gaussian_kernel(sigma, Ly, Lx, device=torch.device("cpu")):
     Returns:
         torch.Tensor: 2D Gaussian kernel tensor.
 
+
+
     """
+
     y = torch.linspace(-Ly / 2, Ly / 2 + 1, Ly, device=device)
     x = torch.linspace(-Ly / 2, Ly / 2 + 1, Lx, device=device)
     y, x = torch.meshgrid(y, x, indexing="ij")
@@ -338,9 +388,11 @@ def gaussian_kernel(sigma, Ly, Lx, device=torch.device("cpu")):
     return kernel
 
 
-def smooth_sharpen_img(img, smooth_radius=6, sharpen_radius=12,
-                       device=torch.device("cpu"), is3D=False):
-    """Sharpen blurry images with surround subtraction and/or smooth noisy images.
+def smooth_sharpen_img(
+    img, smooth_radius=6, sharpen_radius=12, device=torch.device("cpu"), is3D=False
+):
+    """
+    Refine the visual quality of an image through a dual approach of smoothing and sharpening, effectively minimizing noise while enhancing details.
 
     Args:
         img (float32): Array that's (Lz x) Ly x Lx (x nchan).
@@ -354,7 +406,10 @@ def smooth_sharpen_img(img, smooth_radius=6, sharpen_radius=12,
 
     Returns:
         img_sharpen (float32): Array that's (Lz x) Ly x Lx (x nchan).
+
+
     """
+
     img_sharpen = torch.from_numpy(img.astype("float32")).to(device)
     shape = img_sharpen.shape
 
@@ -375,8 +430,9 @@ def smooth_sharpen_img(img, smooth_radius=6, sharpen_radius=12,
     fhp = fft2(kernel)
     for z in range(Lz):
         for c in range(nchan):
-            img_filt = torch.real(ifft2(
-                fft2(img_sharpen[z, :, :, c]) * torch.conj(fhp)))
+            img_filt = torch.real(
+                ifft2(fft2(img_sharpen[z, :, :, c]) * torch.conj(fhp))
+            )
             img_filt = fftshift(img_filt)
             img_sharpen[z, :, :, c] = img_filt
 
@@ -385,23 +441,28 @@ def smooth_sharpen_img(img, smooth_radius=6, sharpen_radius=12,
 
 
 def move_axis(img, m_axis=-1, first=True):
-    """ move axis m_axis to first or last position """
+    """
+    move axis m_axis to first or last position
+
+    """
+
     if m_axis == -1:
         m_axis = img.ndim - 1
     m_axis = min(img.ndim - 1, m_axis)
     axes = np.arange(0, img.ndim)
     if first:
-        axes[1:m_axis + 1] = axes[:m_axis]
+        axes[1 : m_axis + 1] = axes[:m_axis]
         axes[0] = m_axis
     else:
-        axes[m_axis:-1] = axes[m_axis + 1:]
+        axes[m_axis:-1] = axes[m_axis + 1 :]
         axes[-1] = m_axis
     img = img.transpose(tuple(axes))
     return img
 
 
 def move_min_dim(img, force=False):
-    """Move the minimum dimension last as channels if it is less than 10 or force is True.
+    """
+    Rearranges the dimensions of the input image by moving the smallest dimension to the last axis if its size is less than 10, unless the force flag is set to True, which ensures the smallest dimension is always repositioned.
 
     Args:
         img (ndarray): The input image.
@@ -410,7 +471,10 @@ def move_min_dim(img, force=False):
 
     Returns:
         ndarray: The image with the minimum dimension moved to the last axis as channels.
+
+
     """
+
     if len(img.shape) > 2:
         min_dim = min(img.shape)
         if min_dim < 10 or force:
@@ -424,7 +488,7 @@ def move_min_dim(img, force=False):
 
 def update_axis(m_axis, to_squeeze, ndim):
     """
-    Squeeze the axis value based on the given parameters.
+    Modify the axis value based on the provided indices and the total dimensions, enabling proper handling of multidimensional arrays.
 
     Args:
         m_axis (int): The current axis value.
@@ -433,7 +497,10 @@ def update_axis(m_axis, to_squeeze, ndim):
 
     Returns:
         int or None: The updated axis value.
+
+
     """
+
     if m_axis == -1:
         m_axis = ndim - 1
     if (to_squeeze == m_axis).sum() == 1:
@@ -450,7 +517,8 @@ def update_axis(m_axis, to_squeeze, ndim):
 
 
 def convert_image(x, channels, channel_axis=None, z_axis=None, do_3D=False, nchan=2):
-    """Converts the image to have the z-axis first, channels last.
+    """
+    Rearranges the dimensions of the input image by placing the z-axis first and positioning the channels last, facilitating compatibility for further analysis and processing.
 
     Args:
         x (numpy.ndarray or torch.Tensor): The input image.
@@ -467,7 +535,10 @@ def convert_image(x, channels, channel_axis=None, z_axis=None, do_3D=False, ncha
         ValueError: If the input image has less than two channels and channels are not specified.
         ValueError: If the input image is 2D and do_3D is True.
         ValueError: If the input image is 4D and do_3D is False.
+
+
     """
+
     # check if image is a torch array instead of numpy array
     # converts torch to numpy
     ndim = x.ndim
@@ -480,11 +551,14 @@ def convert_image(x, channels, channel_axis=None, z_axis=None, do_3D=False, ncha
         to_squeeze = np.array([int(isq) for isq, s in enumerate(x.shape) if s == 1])
         # remove channel axis if number of channels is 1
         if len(to_squeeze) > 0:
-            channel_axis = update_axis(
-                channel_axis, to_squeeze,
-                x.ndim) if channel_axis is not None else None
-            z_axis = update_axis(z_axis, to_squeeze,
-                                 x.ndim) if z_axis is not None else None
+            channel_axis = (
+                update_axis(channel_axis, to_squeeze, x.ndim)
+                if channel_axis is not None
+                else None
+            )
+            z_axis = (
+                update_axis(z_axis, to_squeeze, x.ndim) if z_axis is not None else None
+            )
             x = x.squeeze()
 
     # put z axis first
@@ -493,7 +567,7 @@ def convert_image(x, channels, channel_axis=None, z_axis=None, do_3D=False, ncha
         if channel_axis is not None:
             channel_axis += 1
         z_axis = 0
-    elif z_axis is None and x.ndim > 2 and channels is not None and min(x.shape) > 5 :
+    elif z_axis is None and x.ndim > 2 and channels is not None and min(x.shape) > 5:
         # if there are > 5 channels and channels!=None, assume first dimension is z
         min_dim = min(x.shape)
         if min_dim != channel_axis:
@@ -502,8 +576,12 @@ def convert_image(x, channels, channel_axis=None, z_axis=None, do_3D=False, ncha
                 x = move_axis(x, m_axis=z_axis, first=True)
                 if channel_axis is not None:
                     channel_axis += 1
-            transforms_logger.warning(f"z_axis not specified, assuming it is dim {z_axis}")
-            transforms_logger.warning(f"if this is actually the channel_axis, use 'model.eval(channel_axis={z_axis}, ...)'")
+            transforms_logger.warning(
+                f"z_axis not specified, assuming it is dim {z_axis}"
+            )
+            transforms_logger.warning(
+                f"if this is actually the channel_axis, use 'model.eval(channel_axis={z_axis}, ...)'"
+            )
             z_axis = 0
 
     if z_axis is not None:
@@ -528,8 +606,9 @@ def convert_image(x, channels, channel_axis=None, z_axis=None, do_3D=False, ncha
 
     if x.ndim > 3:
         transforms_logger.info(
-            "multi-stack tiff read in as having %d planes %d channels" %
-            (x.shape[0], x.shape[-1]))
+            "multi-stack tiff read in as having %d planes %d channels"
+            % (x.shape[0], x.shape[-1])
+        )
 
     # convert to float32
     x = x.astype("float32")
@@ -546,7 +625,8 @@ def convert_image(x, channels, channel_axis=None, z_axis=None, do_3D=False, ncha
         if nchan is not None and x.shape[-1] > nchan:
             transforms_logger.warning(
                 "WARNING: more than %d channels given, use 'channels' input for specifying channels - just using first %d channels to run processing"
-                % (nchan, nchan))
+                % (nchan, nchan)
+            )
             x = x[..., :nchan]
 
         # if not do_3D and x.ndim > 3:
@@ -554,14 +634,16 @@ def convert_image(x, channels, channel_axis=None, z_axis=None, do_3D=False, ncha
         #    raise ValueError("ERROR: cannot process 4D images in 2D mode")
 
         if nchan is not None and x.shape[-1] < nchan:
-            x = np.concatenate((x, np.tile(np.zeros_like(x), (1, 1, nchan - 1))),
-                               axis=-1)
+            x = np.concatenate(
+                (x, np.tile(np.zeros_like(x), (1, 1, nchan - 1))), axis=-1
+            )
 
     return x
 
 
 def reshape(data, channels=[0, 0], chan_first=False):
-    """Reshape data using channels.
+    """
+    Reshape the input data according to the specified channels for enhanced analytical and processing capabilities.
 
     Args:
         data (numpy.ndarray): The input data. It should have shape (Z x ) Ly x Lx x nchan
@@ -576,7 +658,10 @@ def reshape(data, channels=[0, 0], chan_first=False):
 
     Returns:
         numpy.ndarray: The reshaped data with shape (Z x ) Ly x Lx x nchan (if chan_first==False).
+
+
     """
+
     if data.ndim < 3:
         data = data[:, :, np.newaxis]
     elif data.shape[0] < 8 and data.ndim == 3:
@@ -612,10 +697,21 @@ def reshape(data, channels=[0, 0], chan_first=False):
     return data
 
 
-def normalize_img(img, normalize=True, norm3D=True, invert=False, lowhigh=None,
-                  percentile=(1., 99.), sharpen_radius=0, smooth_radius=0,
-                  tile_norm_blocksize=0, tile_norm_smooth3D=1, axis=-1):
-    """Normalize each channel of the image with optional inversion, smoothing, and sharpening.
+def normalize_img(
+    img,
+    normalize=True,
+    norm3D=True,
+    invert=False,
+    lowhigh=None,
+    percentile=(1.0, 99.0),
+    sharpen_radius=0,
+    smooth_radius=0,
+    tile_norm_blocksize=0,
+    tile_norm_smooth3D=1,
+    axis=-1,
+):
+    """
+    Standardize the input image across its channels, offering flexibility for inversion, as well as smoothing and sharpening effects, depending on user-defined parameters.
 
     Args:
         img (ndarray): The input image. It should have at least 3 dimensions.
@@ -645,13 +741,16 @@ def normalize_img(img, normalize=True, norm3D=True, invert=False, lowhigh=None,
         ValueError: If the provided lowhigh or percentile values are invalid.
         ValueError: If the image is inverted without normalization.
 
+
+
     """
+
     if img.ndim < 3:
         error_message = "Image needs to have at least 3 dimensions"
         transforms_logger.critical(error_message)
         raise ValueError(error_message)
 
-    img_norm = img if img.dtype=="float32" else img.astype(np.float32)
+    img_norm = img if img.dtype == "float32" else img.astype(np.float32)
     if axis != -1 and axis != img_norm.ndim - 1:
         img_norm = np.moveaxis(img_norm, axis, -1)  # Move channel axis to last
 
@@ -681,8 +780,8 @@ def normalize_img(img, normalize=True, norm3D=True, invert=False, lowhigh=None,
         for c in range(nchan):
             lower = lowhigh[c, 0]
             upper = lowhigh[c, 1]
-            img_norm[..., c] -= lower 
-            img_norm[..., c] /= (upper - lower)
+            img_norm[..., c] -= lower
+            img_norm[..., c] /= upper - lower
             cgood[c] = True
     else:
         # Apply sharpening and smoothing if specified
@@ -704,26 +803,27 @@ def normalize_img(img, normalize=True, norm3D=True, invert=False, lowhigh=None,
         elif normalize:
             if img_norm.ndim == 3 or norm3D:  # i.e. if YXC, or ZYXC with norm3D=True
                 for c in range(nchan):
-                    if np.ptp(img_norm[..., c]) > 0.:
+                    if np.ptp(img_norm[..., c]) > 0.0:
                         img_norm[..., c] = normalize99(
                             img_norm[..., c],
                             lower=percentile[0],
                             upper=percentile[1],
-                            copy=False, downsample=True,
+                            copy=False,
+                            downsample=True,
                         )
                         cgood[c] = True
             else:  # i.e. if ZYXC with norm3D=False then per Z-slice
                 for z in range(img_norm.shape[0]):
                     for c in range(nchan):
-                        if np.ptp(img_norm[z, ..., c]) > 0.:
+                        if np.ptp(img_norm[z, ..., c]) > 0.0:
                             img_norm[z, ..., c] = normalize99(
                                 img_norm[z, ..., c],
                                 lower=percentile[0],
                                 upper=percentile[1],
-                                copy=False, downsample=True,
+                                copy=False,
+                                downsample=True,
                             )
                             cgood[c] = True
-
 
     if invert:
         if lowhigh is not None or tile_norm_blocksize > 0 or normalize:
@@ -741,8 +841,10 @@ def normalize_img(img, normalize=True, norm3D=True, invert=False, lowhigh=None,
 
     return img_norm
 
+
 def resize_safe(img, Ly, Lx, interpolation=cv2.INTER_LINEAR):
-    """OpenCV resize function does not support uint32.
+    """
+    This function facilitates the resizing of images by temporarily converting them from `uint32` to `float32`, which improves compatibility with resizing operations. After the resizing process, the image is converted back to its original `uint32` format. This approach ensures that the image retains its integrity while efficiently managing the constraints of image data types.
 
     This function converts the image to float32 before resizing and then converts it back to uint32. Not safe!
     References issue: https://github.com/MouseLand/cellpose/issues/937
@@ -761,6 +863,8 @@ def resize_safe(img, Ly, Lx, interpolation=cv2.INTER_LINEAR):
     Returns:
         ndarray: Resized image of size [Ly x Lx].
 
+
+
     """
 
     # cast image
@@ -778,9 +882,11 @@ def resize_safe(img, Ly, Lx, interpolation=cv2.INTER_LINEAR):
     return img
 
 
-def resize_image(img0, Ly=None, Lx=None, rsz=None, interpolation=cv2.INTER_LINEAR,
-                 no_channels=False):
-    """Resize image for computing flows / unresize for computing dynamics.
+def resize_image(
+    img0, Ly=None, Lx=None, rsz=None, interpolation=cv2.INTER_LINEAR, no_channels=False
+):
+    """
+    Modify the dimensions of a single image or a collection of images to specified height and width, facilitating streamlined processing while supporting various channel configurations.
 
     Args:
         img0 (ndarray): Image of size [Y x X x nchan] or [Lz x Y x X x nchan] or [Lz x Y x X].
@@ -797,7 +903,10 @@ def resize_image(img0, Ly=None, Lx=None, rsz=None, interpolation=cv2.INTER_LINEA
     Raises:
         ValueError: If Ly is None and rsz is None.
 
+
+
     """
+
     if Ly is None and rsz is None:
         error_message = "must give size to resize to or factor to use for resizing"
         transforms_logger.critical(error_message)
@@ -819,10 +928,11 @@ def resize_image(img0, Ly=None, Lx=None, rsz=None, interpolation=cv2.INTER_LINEA
     if (img0.ndim > 2 and no_channels) or (img0.ndim == 4 and not no_channels):
         if Ly == 0 or Lx == 0:
             raise ValueError(
-                "anisotropy too high / low -- not enough pixels to resize to ratio")
+                "anisotropy too high / low -- not enough pixels to resize to ratio"
+            )
         for i, img in enumerate(img0):
             imgi = resize_safe(img, Ly, Lx, interpolation=interpolation)
-            if i==0:
+            if i == 0:
                 if no_channels:
                     imgs = np.zeros((img0.shape[0], Ly, Lx), imgi.dtype)
                 else:
@@ -832,7 +942,13 @@ def resize_image(img0, Ly=None, Lx=None, rsz=None, interpolation=cv2.INTER_LINEA
         imgs = resize_safe(img0, Ly, Lx, interpolation=interpolation)
     return imgs
 
+
 def get_pad_yx(Ly, Lx, div=16, extra=1, min_size=None):
+    """
+    No valid docstring found.
+
+    """
+
     if min_size is None or Ly >= min_size[-2]:
         Lpad = int(div * np.ceil(Ly / div) - Ly)
     else:
@@ -850,7 +966,8 @@ def get_pad_yx(Ly, Lx, div=16, extra=1, min_size=None):
 
 
 def pad_image_ND(img0, div=16, extra=1, min_size=None, zpad=False):
-    """Pad image for test-time so that its dimensions are a multiple of 16 (2D or 3D).
+    """
+    Enhances the dimensions of an image by applying padding, accommodating the necessary criteria for subsequent processing. This function supports both 2D and 3D images while allowing for customizable padding options according to given parameters.
 
     Args:
         img0 (ndarray): Image of size [nchan (x Lz) x Ly x Lx].
@@ -860,10 +977,15 @@ def pad_image_ND(img0, div=16, extra=1, min_size=None, zpad=False):
 
     Returns:
         A tuple containing (I, ysub, xsub) or (I, ysub, xsub, zsub), I is padded image, -sub are ranges of pixels in the padded image corresponding to img0.
-            
+
+
+
     """
+
     Ly, Lx = img0.shape[-2:]
-    ypad1, ypad2, xpad1, xpad2 = get_pad_yx(Ly, Lx, div=div, extra=extra, min_size=min_size)
+    ypad1, ypad2, xpad1, xpad2 = get_pad_yx(
+        Ly, Lx, div=div, extra=extra, min_size=min_size
+    )
 
     if img0.ndim > 3:
         if zpad:
@@ -887,10 +1009,21 @@ def pad_image_ND(img0, div=16, extra=1, min_size=None, zpad=False):
         return I, ysub, xsub
 
 
-def random_rotate_and_resize(X, Y=None, scale_range=1., xy=(224, 224), do_3D=False,
-                             zcrop=48, do_flip=True, rotate=True, rescale=None, unet=False,
-                             random_per_image=True):
-    """Augmentation by random rotation and resizing.
+def random_rotate_and_resize(
+    X,
+    Y=None,
+    scale_range=1.0,
+    xy=(224, 224),
+    do_3D=False,
+    zcrop=48,
+    do_flip=True,
+    rotate=True,
+    rescale=None,
+    unet=False,
+    random_per_image=True,
+):
+    """
+    Applies a series of random transformations, including rotation and resizing, to a collection of image and label arrays. These augmentations help improve the diversity and resilience of the dataset by introducing variability in the input data.
 
     Args:
         X (list of ND-arrays, float): List of image arrays of size [nchan x Ly x Lx] or [Ly x Lx].
@@ -908,10 +1041,13 @@ def random_rotate_and_resize(X, Y=None, scale_range=1., xy=(224, 224), do_3D=Fal
         random_per_image (bool, optional): Different random rotate and resize per image. Defaults to True.
 
     Returns:
-        A tuple containing (imgi, lbl, scale): imgi (ND-array, float): Transformed images in array [nimg x nchan x xy[0] x xy[1]]; 
-        lbl (ND-array, float): Transformed labels in array [nimg x nchan x xy[0] x xy[1]]; 
+        A tuple containing (imgi, lbl, scale): imgi (ND-array, float): Transformed images in array [nimg x nchan x xy[0] x xy[1]];
+        lbl (ND-array, float): Transformed labels in array [nimg x nchan x xy[0] x xy[1]];
         scale (array, float): Amount each image was resized by.
+
+
     """
+
     scale_range = max(0, min(2, float(scale_range)))
     nimg = len(X)
     if X[0].ndim > 2:
@@ -939,26 +1075,34 @@ def random_rotate_and_resize(X, Y=None, scale_range=1., xy=(224, 224), do_3D=Fal
         if random_per_image or n == 0:
             Ly, Lx = X[n].shape[-2:]
             # generate random augmentation parameters
-            flip = np.random.rand() > .5
-            theta = np.random.rand() * np.pi * 2 if rotate else 0.
-            scale[n] =  (1 - scale_range / 2) + scale_range * np.random.rand()
+            flip = np.random.rand() > 0.5
+            theta = np.random.rand() * np.pi * 2 if rotate else 0.0
+            scale[n] = (1 - scale_range / 2) + scale_range * np.random.rand()
             if rescale is not None:
-                scale[n] *= 1. / rescale[n]
-            dxy = np.maximum(0, np.array([Lx * scale[n] - xy[1],
-                                          Ly * scale[n] - xy[0]]))
-            dxy = (np.random.rand(2,) - .5) * dxy
+                scale[n] *= 1.0 / rescale[n]
+            dxy = np.maximum(
+                0, np.array([Lx * scale[n] - xy[1], Ly * scale[n] - xy[0]])
+            )
+            dxy = (
+                np.random.rand(
+                    2,
+                )
+                - 0.5
+            ) * dxy
 
             # create affine transform
             cc = np.array([Lx / 2, Ly / 2])
             cc1 = cc - np.array([Lx - xy[1], Ly - xy[0]]) / 2 + dxy
             pts1 = np.float32([cc, cc + np.array([1, 0]), cc + np.array([0, 1])])
-            pts2 = np.float32([
-                cc1,
-                cc1 + scale[n] * np.array([np.cos(theta), np.sin(theta)]),
-                cc1 + scale[n] *
-                np.array([np.cos(np.pi / 2 + theta),
-                          np.sin(np.pi / 2 + theta)])
-            ])
+            pts2 = np.float32(
+                [
+                    cc1,
+                    cc1 + scale[n] * np.array([np.cos(theta), np.sin(theta)]),
+                    cc1
+                    + scale[n]
+                    * np.array([np.cos(np.pi / 2 + theta), np.sin(np.pi / 2 + theta)]),
+                ]
+            )
             M = cv2.getAffineTransform(pts1, pts2)
 
         img = X[n].copy()
@@ -969,13 +1113,13 @@ def random_rotate_and_resize(X, Y=None, scale_range=1., xy=(224, 224), do_3D=Fal
 
         if do_3D:
             Lz = X[n].shape[-3]
-            flip_z = np.random.rand() > .5
+            flip_z = np.random.rand() > 0.5
             lz = int(np.round(zcrop / scale[n]))
             iz = np.random.randint(0, Lz - lz)
-            img = img[:,iz:iz + lz,:,:]
+            img = img[:, iz : iz + lz, :, :]
             if Y is not None:
-                labels = labels[:,iz:iz + lz,:,:]
-        
+                labels = labels[:, iz : iz + lz, :, :]
+
         if do_flip:
             if flip:
                 img = img[..., ::-1]
@@ -986,7 +1130,7 @@ def random_rotate_and_resize(X, Y=None, scale_range=1., xy=(224, 224), do_3D=Fal
             if do_3D and flip_z:
                 img = img[:, ::-1]
                 if Y is not None:
-                    labels = labels[:,::-1]
+                    labels = labels[:, ::-1]
                     if nt > 1 and not unet:
                         labels[-3] = -labels[-3]
 
@@ -994,13 +1138,15 @@ def random_rotate_and_resize(X, Y=None, scale_range=1., xy=(224, 224), do_3D=Fal
             if do_3D:
                 img0 = np.zeros((lz, xy[0], xy[1]), "float32")
                 for z in range(lz):
-                    I = cv2.warpAffine(img[k, z], M, (xy[1], xy[0]),
-                                       flags=cv2.INTER_LINEAR)
+                    I = cv2.warpAffine(
+                        img[k, z], M, (xy[1], xy[0]), flags=cv2.INTER_LINEAR
+                    )
                     img0[z] = I
                 if scale[n] != 1.0:
                     for y in range(imgi.shape[-2]):
-                        imgi[n, k, :, y] = cv2.resize(img0[:, y], (xy[1], zcrop),
-                                                      interpolation=cv2.INTER_LINEAR)
+                        imgi[n, k, :, y] = cv2.resize(
+                            img0[:, y], (xy[1], zcrop), interpolation=cv2.INTER_LINEAR
+                        )
                 else:
                     imgi[n, k] = img0
             else:
@@ -1013,13 +1159,13 @@ def random_rotate_and_resize(X, Y=None, scale_range=1., xy=(224, 224), do_3D=Fal
                 if do_3D:
                     lbl0 = np.zeros((lz, xy[0], xy[1]), "float32")
                     for z in range(lz):
-                        I = cv2.warpAffine(labels[k, z], M, (xy[1], xy[0]),
-                                                      flags=flag)
+                        I = cv2.warpAffine(labels[k, z], M, (xy[1], xy[0]), flags=flag)
                         lbl0[z] = I
                     if scale[n] != 1.0:
                         for y in range(lbl.shape[-2]):
-                            lbl[n, k, :, y] = cv2.resize(lbl0[:, y], (xy[1], zcrop),
-                                                          interpolation=flag)
+                            lbl[n, k, :, y] = cv2.resize(
+                                lbl0[:, y], (xy[1], zcrop), interpolation=flag
+                            )
                     else:
                         lbl[n, k] = lbl0
                 else:
@@ -1028,7 +1174,7 @@ def random_rotate_and_resize(X, Y=None, scale_range=1., xy=(224, 224), do_3D=Fal
             if nt > 1 and not unet:
                 v1 = lbl[n, -1].copy()
                 v2 = lbl[n, -2].copy()
-                lbl[n, -2] = (-v1 * np.sin(-theta) + v2 * np.cos(-theta))
-                lbl[n, -1] = (v1 * np.cos(-theta) + v2 * np.sin(-theta))
+                lbl[n, -2] = -v1 * np.sin(-theta) + v2 * np.cos(-theta)
+                lbl[n, -1] = v1 * np.cos(-theta) + v2 * np.sin(-theta)
 
     return imgi, lbl, scale

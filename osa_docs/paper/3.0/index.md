@@ -1,0 +1,7 @@
+# Cellpose Plus Module 3.0
+
+## Overview
+The Cellpose Plus Module 3.0 is an integral part of the Cellpose Plus framework, focusing on advanced image processing techniques specifically tailored for cell segmentation and image denoising. This module offers a suite of functions and classes that enable users to download datasets, perform denoising via various methods, and execute segmentation tasks effectively on real-world microscopy images. It is designed to support researchers in analyzing cellular structures in both 2D and 3D formats, fostering improved accuracy and efficiency in biological image analysis.
+
+## Purpose
+The primary purpose of this module is to empower users with tools that facilitate the preparation, execution, and evaluation of image processing tasks related to cell segmentation and denoising. It includes functionalities for training models using both specialized and generalist approaches, evaluating the performance of segmentation models, and generating various benchmark results for different noise types and cell types. By systematically processing noisy images, providing advanced training mechanisms, and creating visual outputs to assess model performance, this module enhances the capabilities of researchers and practitioners in the fields of microscopy and cellular biology, contributing to more reliable and informative analyses of complex biological images.

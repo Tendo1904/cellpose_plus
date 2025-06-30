@@ -10,6 +10,7 @@ from . import utils, io, transforms
 
 try:
     import matplotlib
+
     MATPLOTLIB_ENABLED = True
 except:
     MATPLOTLIB_ENABLED = False
@@ -17,6 +18,7 @@ except:
 try:
     from skimage import color
     from skimage.segmentation import find_boundaries
+
     SKIMAGE_ENABLED = True
 except:
     SKIMAGE_ENABLED = False
@@ -24,29 +26,38 @@ except:
 
 # modified to use sinebow color
 def dx_to_circ(dP):
-    """Converts the optic flow representation to a circular color representation.
+    """
+    Converts flow field components into a circular color map, providing a visual representation of motion dynamics through color encoding of direction and intensity.
 
     Args:
         dP (ndarray): Flow field components [dy, dx].
-        
+
     Returns:
         ndarray: The circular color representation of the optic flow.
 
+
+
     """
-    mag = 255 * np.clip(transforms.normalize99(np.sqrt(np.sum(dP**2, axis=0))), 0, 1.)
+
+    mag = 255 * np.clip(transforms.normalize99(np.sqrt(np.sum(dP**2, axis=0))), 0, 1.0)
     angles = np.arctan2(dP[1], dP[0]) + np.pi
     a = 2
     mag /= a
     rgb = np.zeros((*dP.shape[1:], 3), "uint8")
     rgb[..., 0] = np.clip(mag * (np.cos(angles) + 1), 0, 255).astype("uint8")
-    rgb[..., 1] = np.clip(mag * (np.cos(angles + 2 * np.pi / 3) + 1), 0, 255).astype("uint8")
-    rgb[..., 2] = np.clip(mag * (np.cos(angles + 4 * np.pi / 3) + 1), 0, 255).astype("uint8")
-    
+    rgb[..., 1] = np.clip(mag * (np.cos(angles + 2 * np.pi / 3) + 1), 0, 255).astype(
+        "uint8"
+    )
+    rgb[..., 2] = np.clip(mag * (np.cos(angles + 4 * np.pi / 3) + 1), 0, 255).astype(
+        "uint8"
+    )
+
     return rgb
 
 
 def show_segmentation(fig, img, maski, flowi, channels=[0, 0], file_name=None):
-    """Plot segmentation results (like on website).
+    """
+    Display segmentation results by arranging the original image, predicted outlines, masks, and flow in a four-panel layout. Users can save each panel as a separate image file by providing a filename. The channels parameter can be adjusted for images that are not in RGB format, ensuring proper visualization.
 
     Can save each panel of figure with file_name option. Use channels option if
     img input is not an RGB image with 3 channels.
@@ -59,10 +70,14 @@ def show_segmentation(fig, img, maski, flowi, channels=[0, 0], file_name=None):
         channels (list of int, optional): Channels used to run Cellpose, no need to use if image is RGB. Defaults to [0, 0].
         file_name (str, optional): File name of image. If file_name is not None, figure panels are saved. Defaults to None.
         seg_norm (bool, optional): Improve cell visibility under labels. Defaults to False.
+
+
     """
+
     if not MATPLOTLIB_ENABLED:
         raise ImportError(
-            "matplotlib not installed, install with 'pip install matplotlib'")
+            "matplotlib not installed, install with 'pip install matplotlib'"
+        )
     ax = fig.add_subplot(1, 4, 1)
     img0 = img.copy()
 
@@ -108,7 +123,8 @@ def show_segmentation(fig, img, maski, flowi, channels=[0, 0], file_name=None):
 
 
 def mask_rgb(masks, colors=None):
-    """Masks in random RGB colors.
+    """
+    Generates a visual representation of the input array by applying color masks, where distinct mask labels are represented in either randomly assigned or user-defined RGB colors.
 
     Args:
         masks (int, 2D array): Masks where 0=NO masks; 1,2,...=mask labels.
@@ -116,7 +132,10 @@ def mask_rgb(masks, colors=None):
 
     Returns:
         RGB (uint8, 3D array): Array of masks overlaid on grayscale image.
+
+
     """
+
     if colors is not None:
         if colors.max() > 1:
             colors = np.float32(colors)
@@ -138,7 +157,8 @@ def mask_rgb(masks, colors=None):
 
 
 def mask_overlay(img, masks, colors=None):
-    """Overlay masks on image (set image to grayscale).
+    """
+    Overlay colored masks on a given image by first transforming it into a grayscale format, then merging the masks to highlight specific regions based on provided labels.
 
     Args:
         img (int or float, 2D or 3D array): Image of size [Ly x Lx (x nchan)].
@@ -147,7 +167,10 @@ def mask_overlay(img, masks, colors=None):
 
     Returns:
         RGB (uint8, 3D array): Array of masks overlaid on grayscale image.
+
+
     """
+
     if colors is not None:
         if colors.max() > 1:
             colors = np.float32(colors)
@@ -159,7 +182,7 @@ def mask_overlay(img, masks, colors=None):
         img = img.astype(np.float32)
 
     HSV = np.zeros((img.shape[0], img.shape[1], 3), np.float32)
-    HSV[:, :, 2] = np.clip((img / 255. if img.max() > 1 else img) * 1.5, 0, 1)
+    HSV[:, :, 2] = np.clip((img / 255.0 if img.max() > 1 else img) * 1.5, 0, 1)
     hues = np.linspace(0, 1, masks.max() + 1)[np.random.permutation(masks.max())]
     for n in range(int(masks.max())):
         ipix = (masks == n + 1).nonzero()
@@ -173,7 +196,8 @@ def mask_overlay(img, masks, colors=None):
 
 
 def image_to_rgb(img0, channels=[0, 0]):
-    """Converts image from 2 x Ly x Lx or Ly x Lx x 2 to RGB Ly x Lx x 3.
+    """
+    Transforms an input image with a shape of 2 x Ly x Lx or Ly x Lx x 2 into a standard RGB representation, yielding an output with a shape of Ly x Lx x 3.
 
     Args:
         img0 (ndarray): Input image of shape 2 x Ly x Lx or Ly x Lx x 2.
@@ -181,7 +205,10 @@ def image_to_rgb(img0, channels=[0, 0]):
     Returns:
         ndarray: RGB image of shape Ly x Lx x 3.
 
+
+
     """
+
     img = img0.copy()
     img = img.astype(np.float32)
     if img.ndim < 3:
@@ -208,7 +235,7 @@ def image_to_rgb(img0, channels=[0, 0]):
 
 def interesting_patch(mask, bsize=130):
     """
-    Get patch of size bsize x bsize with most masks.
+    Identify the coordinates of a patch of a specified size that encompasses the region with the maximum density of notable values from the given input mask.
 
     Args:
         mask (ndarray): Input mask.
@@ -217,7 +244,10 @@ def interesting_patch(mask, bsize=130):
     Returns:
         tuple: Patch coordinates (y, x).
 
+
+
     """
+
     Ly, Lx = mask.shape
     m = np.float32(mask > 0)
     m = gaussian_filter(m, bsize / 2)
@@ -226,13 +256,14 @@ def interesting_patch(mask, bsize=130):
     xcent = max(bsize // 2, min(x, Lx - bsize // 2))
     patch = [
         np.arange(ycent - bsize // 2, ycent + bsize // 2, 1, int),
-        np.arange(xcent - bsize // 2, xcent + bsize // 2, 1, int)
+        np.arange(xcent - bsize // 2, xcent + bsize // 2, 1, int),
     ]
     return patch
 
 
 def disk(med, r, Ly, Lx):
-    """Returns the pixels of a disk with a given radius and center.
+    """
+    Determines the pixel coordinates that lie within a circular region specified by a central point and radius.
 
     Args:
         med (tuple): The center coordinates of the disk.
@@ -243,10 +274,14 @@ def disk(med, r, Ly, Lx):
     Returns:
         tuple: A tuple containing the y and x coordinates of the pixels within the disk.
 
+
+
     """
-    yy, xx = np.meshgrid(np.arange(0, Ly, 1, int), np.arange(0, Lx, 1, int),
-                         indexing="ij")
-    inds = ((yy - med[0])**2 + (xx - med[1])**2)**0.5 <= r
+
+    yy, xx = np.meshgrid(
+        np.arange(0, Ly, 1, int), np.arange(0, Lx, 1, int), indexing="ij"
+    )
+    inds = ((yy - med[0]) ** 2 + (xx - med[1]) ** 2) ** 0.5 <= r
     y = yy[inds].flatten()
     x = xx[inds].flatten()
     return y, x
@@ -254,7 +289,7 @@ def disk(med, r, Ly, Lx):
 
 def outline_view(img0, maski, color=[1, 0, 0], mode="inner"):
     """
-    Generates a red outline overlay onto the image.
+    Applies an outline to the given image using a specified mask, with options to customize the outline color and choose the method of outline creation.
 
     Args:
         img0 (numpy.ndarray): The input image.
@@ -265,20 +300,19 @@ def outline_view(img0, maski, color=[1, 0, 0], mode="inner"):
     Returns:
         numpy.ndarray: The image with the red outline overlay.
 
+
+
     """
-    if img0.ndim==2:
+
+    if img0.ndim == 2:
         img0 = np.stack([img0] * 3, axis=-1)
-    elif img0.ndim!=3:
+    elif img0.ndim != 3:
         raise ValueError("img0 not right size (must have ndim 2 or 3)")
 
     if SKIMAGE_ENABLED:
-        outlines = find_boundaries(
-            maski,
-            mode=mode)
+        outlines = find_boundaries(maski, mode=mode)
     else:
-        outlines = utils.masks_to_outlines(
-            maski,
-            mode=mode)
+        outlines = utils.masks_to_outlines(maski, mode=mode)
     outY, outX = np.nonzero(outlines)
     imgout = img0.copy()
     imgout[outY, outX] = np.array(color)

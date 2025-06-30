@@ -1,0 +1,7 @@
+# Cellpose
+
+## Overview
+Cellpose is an advanced image processing library specifically designed for the segmentation and restoration of cellular images. It utilizes deep learning technologies to efficiently process both 2D and 3D image data, enabling users to extract detailed segmentation results from complex biological imagery. The library includes capabilities for assessing and managing computation resources, such as ensuring compatibility with GPU frameworks, and optimally handling image input/output operations.
+
+## Purpose
+The primary purpose of Cellpose is to provide researchers and professionals engaged in microscopy and cellular biology with a powerful and reliable tool for precise cell image segmentation and analysis. It encompasses a variety of critical functionalities, including model training, evaluation of segmentations, loss calculations for model performance, the application of data augmentation techniques for improved analytical robustness, and advanced preprocessing methods to enhance image quality. By integrating these features, Cellpose aims to significantly support the accuracy and efficiency of image analysis workflows in the biological sciences, thus advancing research and discoveries within this field.

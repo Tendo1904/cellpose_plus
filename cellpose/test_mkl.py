@@ -10,6 +10,7 @@ import time
 
 try:
     import mxnet as mx
+
     x = mx.sym.Variable("x")
     MXNET_ENABLED = True
 except:
@@ -17,6 +18,11 @@ except:
 
 
 def test_mkl():
+    """
+    No valid docstring found.
+
+    """
+
     if MXNET_ENABLED:
         num_filter = 32
         kernel = (3, 3)
@@ -25,8 +31,14 @@ def test_mkl():
 
         x = mx.sym.Variable("x")
         w = mx.sym.Variable("w")
-        y = mx.sym.Convolution(data=x, weight=w, num_filter=num_filter, kernel=kernel,
-                               no_bias=True, pad=pad)
+        y = mx.sym.Convolution(
+            data=x,
+            weight=w,
+            num_filter=num_filter,
+            kernel=kernel,
+            no_bias=True,
+            pad=pad,
+        )
         exe = y.simple_bind(mx.cpu(), x=shape)
 
         exe.arg_arrays[0][:] = np.random.normal(size=exe.arg_arrays[0].shape)

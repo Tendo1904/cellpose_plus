@@ -8,23 +8,43 @@ from cellpose.transforms import normalize_img, random_rotate_and_resize, resize_
 @pytest.fixture
 def img_3d(data_dir):
     """Fixture to load 3D image data for tests."""
-    img = imread(str(data_dir.joinpath('3D').joinpath('rgb_3D.tif')))
-    return img.transpose(0, 2, 3, 1).astype('float32')
+    img = imread(str(data_dir.joinpath("3D").joinpath("rgb_3D.tif")))
+    return img.transpose(0, 2, 3, 1).astype("float32")
 
 
 @pytest.fixture
 def img_2d(data_dir):
     """Fixture to load 2D image data for tests."""
-    return imread(str(data_dir.joinpath('2D').joinpath('rgb_2D_tif.tif')))
+    return imread(str(data_dir.joinpath("2D").joinpath("rgb_2D_tif.tif")))
 
 
 def test_random_rotate_and_resize__default():
+    """
+    Tests the random_rotate_and_resize function with a default setup.
+
+    This method generates a list of random images and passes them to the
+    random_rotate_and_resize function for processing.
+
+    Returns:
+        None: This method does not return any value.
+    """
     nimg = 2
     X = [np.random.rand(64, 64) for i in range(nimg)]
     random_rotate_and_resize(X)
 
 
 def test_normalize_img(img_3d):
+    """
+    Tests the normalization of a 3D image using different normalization parameters.
+
+    Args:
+        img_3d: A 3D image array to be normalized.
+
+    Returns:
+        None: This method does not return a value. It asserts that the shape of the
+        normalized image matches the shape of the input image after the normalization
+        process.
+    """
     img_norm = normalize_img(img_3d, norm3D=True)
     assert img_norm.shape == img_3d.shape
 
@@ -36,6 +56,17 @@ def test_normalize_img(img_3d):
 
 
 def test_normalize_img_with_lowhigh_and_invert(img_3d):
+    """
+    Tests the normalization of a 3D image with specified low and high values, including inversion and channel-wise normalization.
+
+    This method checks whether the normalization of the input image results in pixel values within expected ranges, leveraging different low and high bounds for normalization. It performs assertions to ensure that the normalized images meet specific criteria based on the provided low and high values.
+
+    Args:
+        img_3d: A 3D array representing the image to be normalized.
+
+    Returns:
+        None: This method does not return a value but asserts conditions on the normalized image.
+    """
     img_norm = normalize_img(img_3d, lowhigh=(img_3d.min() + 1, img_3d.max() - 1))
     assert img_norm.min() < 0 and img_norm.max() > 1
 
@@ -53,6 +84,9 @@ def test_normalize_img_with_lowhigh_and_invert(img_3d):
 
 
 def test_normalize_img_exceptions(img_3d):
+    """
+    No valid docstring found.
+    """
     img_2D = img_3d[0, ..., 0]
     with pytest.raises(ValueError):
         normalize_img(img_2D)
@@ -76,6 +110,16 @@ def test_normalize_img_exceptions(img_3d):
 
 
 def test_resize(img_2d):
+    """
+    Tests the resizing functionality of an image by verifying the output image's shape
+    and data type for different bit depths.
+
+    Args:
+        img_2d: A 2D array representing the original image to be resized.
+
+    Returns:
+        None
+    """
     Lx = 100
     Ly = 200
 
