@@ -79,6 +79,7 @@ from bioimageio.spec.model.v0_5 import (
     Version,
     WeightsDescr,
 )
+
 # Define ARBITRARY_SIZE if it is not available in the module
 try:
     from bioimageio.spec.model.v0_5 import ARBITRARY_SIZE
@@ -123,6 +124,20 @@ def download_and_normalize_image(path_dir_temp, channels=DEFAULT_CHANNELS):
 
 
 def load_bioimageio_cpnet_model(path_model_weight, nchan=2):
+    """
+    Loads a CPnet model from the specified weights file and initializes it with given parameters.
+
+    This method creates an instance of the CPnet model with the specified number of channels and loads the model weights from a file. The model is set to evaluation mode to ensure correct behavior during inference.
+
+    Args:
+        path_model_weight: The path to the model weights file.
+        nchan: The number of input channels for the model (default is 2).
+
+    Returns:
+        A tuple containing:
+            - cpnet_biio: The initialized CPnet model.
+            - cpnet_kwargs: A dictionary of keyword arguments used for initializing the model.
+    """
     cpnet_kwargs = {
         "nbase": [nchan, 32, 64, 128, 256],
         "nout": 3,
@@ -132,13 +147,25 @@ def load_bioimageio_cpnet_model(path_model_weight, nchan=2):
         "max_pool": True,
     }
     cpnet_biio = CPnetBioImageIO(**cpnet_kwargs)
-    state_dict_cuda = torch.load(path_model_weight, map_location=torch.device("cpu"), weights_only=True)
+    state_dict_cuda = torch.load(
+        path_model_weight, map_location=torch.device("cpu"), weights_only=True
+    )
     cpnet_biio.load_state_dict(state_dict_cuda)
     cpnet_biio.eval()  # crucial for the prediction results
     return cpnet_biio, cpnet_kwargs
 
 
 def descr_gen_input(path_test_input, nchan=2):
+    """
+    Generates a description of an input tensor based on the specified parameters.
+
+    Args:
+        path_test_input: The file path for the test input tensor.
+        nchan: The number of channels for the input tensor (default is 2).
+
+    Returns:
+        An InputTensorDescr object containing the configuration and description of the input tensor.
+    """
     input_axes = [
         SpaceInputAxis(id=AxisId("z"), size=ARBITRARY_SIZE),
         ChannelAxis(channel_names=[Identifier(f"c{i+1}") for i in range(nchan)]),
@@ -157,11 +184,36 @@ def descr_gen_input(path_test_input, nchan=2):
 
 
 def descr_gen_output_flow(path_test_output):
+    """
+    Generates an output tensor description for a flow data structure based on the specified output path.
+
+    Args:
+        path_test_output: The file path where the test output will be stored.
+
+    Returns:
+        An OutputTensorDescr object that defines the structure of the output tensor
+        for flow data, including axes information and the source of the test tensor.
+    """
     output_axes_output_tensor = [
-        SpaceOutputAxis(id=AxisId("z"), size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId("z"))),
-        ChannelAxis(channel_names=[Identifier("flow1"), Identifier("flow2"), Identifier("flow3")]),
-        SpaceOutputAxis(id=AxisId("y"), size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId("y"))),
-        SpaceOutputAxis(id=AxisId("x"), size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId("x"))),
+        SpaceOutputAxis(
+            id=AxisId("z"),
+            size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId("z")),
+        ),
+        ChannelAxis(
+            channel_names=[
+                Identifier("flow1"),
+                Identifier("flow2"),
+                Identifier("flow3"),
+            ]
+        ),
+        SpaceOutputAxis(
+            id=AxisId("y"),
+            size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId("y")),
+        ),
+        SpaceOutputAxis(
+            id=AxisId("x"),
+            size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId("x")),
+        ),
     ]
     path_test_output = Path(path_test_output)
     descr_output = OutputTensorDescr(
@@ -173,13 +225,31 @@ def descr_gen_output_flow(path_test_output):
 
 
 def descr_gen_output_downsampled(path_dir_temp, nbase=None):
+    """
+    Generates a description of downsampled output tensors based on specified parameters.
+
+    This method creates downsampled output tensor descriptions, which include dimensions and scaling factors.
+    If a base list is not provided, a default set of base values will be used.
+
+    Args:
+        path_dir_temp: The directory path where the downsampled tensors will be saved.
+        nbase: An optional list of base values used to define the number of features for each downsampled output.
+
+    Returns:
+        A list of output tensor descriptions for the downsampled tensors.
+    """
     if nbase is None:
         nbase = [32, 64, 128, 256]
 
     output_axes_downsampled_tensors = [
         [
-            SpaceOutputAxis(id=AxisId("z"), size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId("z"))),
-            ChannelAxis(channel_names=[Identifier(f"feature{i+1}") for i in range(base)]),
+            SpaceOutputAxis(
+                id=AxisId("z"),
+                size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId("z")),
+            ),
+            ChannelAxis(
+                channel_names=[Identifier(f"feature{i+1}") for i in range(base)]
+            ),
             SpaceOutputAxis(
                 id=AxisId("y"),
                 size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId("y")),
@@ -194,7 +264,8 @@ def descr_gen_output_downsampled(path_dir_temp, nbase=None):
         for offset, base in enumerate(nbase)
     ]
     path_downsampled_tensors = [
-        Path(path_dir_temp / f"test_downsampled_{i}.npy") for i in range(len(output_axes_downsampled_tensors))
+        Path(path_dir_temp / f"test_downsampled_{i}.npy")
+        for i in range(len(output_axes_downsampled_tensors))
     ]
     descr_output_downsampled_tensors = [
         OutputTensorDescr(
@@ -202,15 +273,35 @@ def descr_gen_output_downsampled(path_dir_temp, nbase=None):
             axes=axes,
             test_tensor=FileDescr(source=path),
         )
-        for i, (axes, path) in enumerate(zip(output_axes_downsampled_tensors, path_downsampled_tensors))
+        for i, (axes, path) in enumerate(
+            zip(output_axes_downsampled_tensors, path_downsampled_tensors)
+        )
     ]
     return descr_output_downsampled_tensors
 
 
 def descr_gen_output_style(path_test_style, nchannel=256):
+    """
+    Generate a description of the output tensor style.
+
+    This method constructs an OutputTensorDescr object that defines the
+    structure of a style tensor based on the given path and number of channels.
+
+    Args:
+        path_test_style: The path to the style tensor file.
+        nchannel: The number of channels to include in the output tensor description.
+
+    Returns:
+        An OutputTensorDescr object representing the style tensor's structure.
+    """
     output_axes_style_tensor = [
-        SpaceOutputAxis(id=AxisId("z"), size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId("z"))),
-        ChannelAxis(channel_names=[Identifier(f"feature{i+1}") for i in range(nchannel)]),
+        SpaceOutputAxis(
+            id=AxisId("z"),
+            size=SizeReference(tensor_id=TensorId("raw"), axis_id=AxisId("z")),
+        ),
+        ChannelAxis(
+            channel_names=[Identifier(f"feature{i+1}") for i in range(nchannel)]
+        ),
     ]
     path_style_tensor = Path(path_test_style)
     descr_output_style_tensor = OutputTensorDescr(
@@ -222,6 +313,21 @@ def descr_gen_output_style(path_test_style, nchannel=256):
 
 
 def descr_gen_arch(cpnet_kwargs, path_cpnet_wrapper=None):
+    """
+    Generates a PyTorch architecture description from a specified file.
+
+    This method creates an instance of the ArchitectureFromFileDescr class using the provided keyword arguments
+    and an optional path to a wrapper file. If no path is specified, it defaults to "resnet_torch.py" located
+    in the same directory as the current file.
+
+    Args:
+        cpnet_kwargs: A dictionary containing keyword arguments for the architecture generation.
+        path_cpnet_wrapper: An optional string that specifies the path to the wrapper file. If not provided,
+                            defaults to "resnet_torch.py".
+
+    Returns:
+        An instance of the ArchitectureFromFileDescr class representing the PyTorch architecture.
+    """
     if path_cpnet_wrapper is None:
         path_cpnet_wrapper = Path(__file__).parent / "resnet_torch.py"
     pytorch_architecture = ArchitectureFromFileDescr(
@@ -233,6 +339,21 @@ def descr_gen_arch(cpnet_kwargs, path_cpnet_wrapper=None):
 
 
 def descr_gen_documentation(path_doc, markdown_text):
+    """
+    Generates a documentation file in Markdown format.
+
+    This method creates a new file at the specified path and writes the given
+    Markdown text into it.
+
+    Args:
+        path_doc: The file system path where the Markdown documentation will be
+            saved.
+        markdown_text: The content in Markdown format that will be written
+            to the documentation file.
+
+    Returns:
+        None
+    """
     with open(path_doc, "w") as f:
         f.write(markdown_text)
 
@@ -275,14 +396,18 @@ def package_to_bioimageio(
             )
             for author in model_authors
         ],
-        cite=[CiteEntry(text=cite["text"], doi=Doi(cite["doi"]), url=cite["url"]) for cite in model_cite],
+        cite=[
+            CiteEntry(text=cite["text"], doi=Doi(cite["doi"]), url=cite["url"])
+            for cite in model_cite
+        ],
         covers=[Path(img) for img in list_path_cover_images],
         license=LicenseId(model_license),
         tags=model_tags,
         documentation=Path(path_readme),
         git_repo=HttpUrl(model_repo),
         inputs=[descr_input],
-        outputs=[descr_output, descr_output_style_tensor] + descr_output_downsampled_tensors,
+        outputs=[descr_output, descr_output_style_tensor]
+        + descr_output_downsampled_tensors,
         weights=WeightsDescr(
             pytorch_state_dict=PytorchStateDictWeightsDescr(
                 source=Path(path_pretrained_model),
@@ -301,6 +426,30 @@ def package_to_bioimageio(
 
 
 def parse_args():
+    """
+    Parses command line arguments for the BioImage.IO model packaging for Cellpose.
+
+    This method initializes an argument parser with predefined arguments required for packaging a model,
+    allowing users to specify various parameters related to the model, its documentation, authorship,
+    and associated files.
+
+    Returns:
+        argparse.Namespace: A namespace object containing the parsed command line arguments, which include:
+            - channels: Channels configuration for the model.
+            - path_pretrained_model: Path to the pretrained model file.
+            - path_readme: Path to the README file.
+            - list_path_cover_images: List of paths to cover images.
+            - model_id: (Optional) Model ID if it already exists.
+            - model_icon: (Optional) Model icon if it already exists.
+            - model_version: The version of the model.
+            - model_name: The name of the model.
+            - model_documentation: Documentation for the model.
+            - model_authors: Authors of the model in JSON format.
+            - model_cite: Citation for the model in JSON format.
+            - model_tags: Tags associated with the model.
+            - model_license: License under which the model is released.
+            - model_repo: URL of the model repository.
+    """
     # fmt: off
     parser = argparse.ArgumentParser(description="BioImage.IO model packaging for Cellpose")
     parser.add_argument("--channels", nargs=2, default=[2, 1], type=int, help="Cyto-only = [2, 0], Cyto + Nuclei = [2, 1], Nuclei-only = [1, 0]")
@@ -322,6 +471,20 @@ def parse_args():
 
 
 def main():
+    """
+    Runs the main workflow for processing a deep learning model, which includes parsing
+    user inputs, loading and testing a model, and packaging the results for BioImage.IO.
+
+    This method orchestrates the entire operation, including downloading and normalizing
+    an input image, loading the specified model, saving the model's outputs, and packaging
+    the model with its associated metadata.
+
+    Parameters:
+        None
+
+    Returns:
+        None
+    """
     args = parse_args()
 
     # Parse user-provided paths and arguments
@@ -331,11 +494,15 @@ def main():
 
     path_readme = Path(args.path_readme)
     path_pretrained_model = Path(args.path_pretrained_model)
-    list_path_cover_images = [Path(path_image) for path_image in args.list_path_cover_images]
+    list_path_cover_images = [
+        Path(path_image) for path_image in args.list_path_cover_images
+    ]
 
     # Auto-generated paths
     path_cpnet_wrapper = Path(__file__).resolve().parent / "resnet_torch.py"
-    path_dir_temp = Path(__file__).resolve().parent.parent / "models" / path_pretrained_model.stem
+    path_dir_temp = (
+        Path(__file__).resolve().parent.parent / "models" / path_pretrained_model.stem
+    )
     path_dir_temp.mkdir(parents=True, exist_ok=True)
 
     path_save_trace = path_dir_temp / "cp_traced.pt"
@@ -366,8 +533,12 @@ def main():
     # Generate model description
     descr_input = descr_gen_input(path_test_input)
     descr_output = descr_gen_output_flow(path_test_output)
-    descr_output_downsampled_tensors = descr_gen_output_downsampled(path_dir_temp, nbase=cpnet_biio.nbase[1:])
-    descr_output_style_tensor = descr_gen_output_style(path_test_style, cpnet_biio.nbase[-1])
+    descr_output_downsampled_tensors = descr_gen_output_downsampled(
+        path_dir_temp, nbase=cpnet_biio.nbase[1:]
+    )
+    descr_output_style_tensor = descr_gen_output_style(
+        path_test_style, cpnet_biio.nbase[-1]
+    )
     pytorch_version = Version(torch.__version__)
     pytorch_architecture = descr_gen_arch(cpnet_kwargs, path_cpnet_wrapper)
 
@@ -402,7 +573,9 @@ def main():
     summary.display()
 
     # Save BioImage.IO package
-    package_path = save_bioimageio_package(my_model_descr, output_path=Path(path_bioimageio_package))
+    package_path = save_bioimageio_package(
+        my_model_descr, output_path=Path(path_bioimageio_package)
+    )
     print("package path:", package_path)
 
 

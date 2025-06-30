@@ -10,6 +10,7 @@ import time
 
 try:
     import mxnet as mx
+
     x = mx.sym.Variable("x")
     MXNET_ENABLED = True
 except:
@@ -17,6 +18,17 @@ except:
 
 
 def test_mkl():
+    """
+    Tests the MKL (Math Kernel Library) capabilities of the MXNet framework by performing a convolution operation.
+
+    This method creates a convolution operation using MXNet's symbolic API, binds the execution with specified input shapes, and forwards random input data through the convolution layer.
+
+    Parameters:
+    - None
+
+    Returns:
+    - A NumPy array representing the output of the convolution operation.
+    """
     if MXNET_ENABLED:
         num_filter = 32
         kernel = (3, 3)
@@ -25,8 +37,14 @@ def test_mkl():
 
         x = mx.sym.Variable("x")
         w = mx.sym.Variable("w")
-        y = mx.sym.Convolution(data=x, weight=w, num_filter=num_filter, kernel=kernel,
-                               no_bias=True, pad=pad)
+        y = mx.sym.Convolution(
+            data=x,
+            weight=w,
+            num_filter=num_filter,
+            kernel=kernel,
+            no_bias=True,
+            pad=pad,
+        )
         exe = y.simple_bind(mx.cpu(), x=shape)
 
         exe.arg_arrays[0][:] = np.random.normal(size=exe.arg_arrays[0].shape)

@@ -1,0 +1,7 @@
+# Cellpose Plus Module - v3_0
+
+## Overview
+The v3_0 module of the Cellpose Plus framework is dedicated to advanced image analysis specifically focused on cell segmentation and denoising tasks. It implements a variety of functions that facilitate the evaluation, training, and performance benchmarking of deep learning models designed to process cellular images from microscopy. The functionalities provided in this module are essential for researchers needing to accurately prepare and assess cellular image data.
+
+## Purpose
+The primary purpose of the v3_0 module is to offer specialized tools for denoising images, creating datasets, and visualizing segmentation performance. It includes functions for downloading necessary datasets, performing blind denoising using various machine learning methods, and assessing denoised images against ground truth masks. Additionally, the module allows for the training of models specifically designed for noisy images and evaluates their effectiveness. Various benchmarking utilities are incorporated to generate figures and metrics for analyzing the performance of segmentation algorithms. Overall, it enables users to enhance the reliability of cellular structure identification, thereby providing invaluable insights into biological data.
